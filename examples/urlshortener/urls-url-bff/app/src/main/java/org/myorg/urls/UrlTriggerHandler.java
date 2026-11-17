@@ -21,7 +21,7 @@ public class UrlTriggerHandler implements RequestHandler<DynamodbEvent, Void> {
     public Void handleRequest(DynamodbEvent input, Context context) {
         new PipelineRunner<DynamodbEvent>(container.assembler)
                 .headFlow(container.dynamoDbAdapter::fromDynamoDB)
-                .transformer(Handlers::collectMetrics)
+                .transformer(flow -> Handlers.collectMetrics(flow, container.context))
                 .run(input);
         return null;
     }

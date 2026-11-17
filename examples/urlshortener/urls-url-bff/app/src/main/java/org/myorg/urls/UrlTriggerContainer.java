@@ -16,11 +16,13 @@ import java.util.Map;
 import java.util.UUID;
 
 public class UrlTriggerContainer {
+    public final AwsKopipesContext context;
     public final EventPublisher eventPublisher;
     public final PipelineAssembler assembler;
     public final DynamodbAdapter dynamoDbAdapter;
 
     public UrlTriggerContainer(AwsKopipesContext context, EventPublisher eventPublisher) {
+        this.context = context;
         this.eventPublisher = eventPublisher;
         CdcPipeline cdcPipeline = CdcPipeline
                 .builder()

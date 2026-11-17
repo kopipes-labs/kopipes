@@ -58,10 +58,12 @@ you pass it to what you build. `new AwsKopipesContext()` reads the usual env var
 
 ```java
 public class OrderProcessingContainer {
+    public final AwsKopipesContext context;
     public final PipelineAssembler assembler;
     public final DynamodbAdapter dynamoDbAdapter;
 
     public OrderProcessingContainer(AwsKopipesContext context) {
+        this.context = context;
         CdcPipeline cdcPipeline = CdcPipeline.builder()
                 .id("order-cdc")
                 .eventPublisher(context.getEventPublisher())
@@ -103,12 +105,15 @@ public class OrderHandler implements RequestHandler<DynamodbEvent, Void> {
     public Void handleRequest(DynamodbEvent input, Context context) {
         new PipelineRunner<DynamodbEvent>(container.assembler)
                 .headFlow(container.dynamoDbAdapter::fromDynamoDB)
-                .transformer(Handlers::collectMetrics)
+                .transformer(flow -> Handlers.collectMetrics(flow, container.context))
                 .run(input);
         return null;
     }
 }
 ```
+
+`Handlers.collectMetrics(flow, context)` reports the batch's metrics in CloudWatch Embedded Metric Format when
+`METRICS` includes `emf`; see [Observability](Observability.md).
 
 For tests, custom retry rules and the full list of settings, see [Wiring a kopipes Lambda](Wiring.md).
 
@@ -127,7 +132,7 @@ other methods that accept standard `java.util.function` types instead of Kotlin 
 
 ### Handlers and PipelineRunner
 *   `PipelineRunner`: Orchestrates the execution of the flow in a blocking manner suitable for Lambda.
-*   `Handlers`: Provides static utility methods like `collectMetrics` that can be used in your pipeline runner.
+*   `Handlers`: Provides static utility methods like `collectMetrics(flow, context)` that can be used in your pipeline runner.
 
 ## Testing
 You can test your pipeline logic using standard JUnit 5.

@@ -8,11 +8,13 @@ import io.kopipes.core.flavors.CollectPipeline;
 import io.kopipes.core.sinks.EventsMicrostore;
 
 public class ControlListenerContainer {
+    public final AwsKopipesContext context;
     public final EventsMicrostore eventsMicrostore;
     public final PipelineAssembler assembler;
     public final KinesisAdapter kinesisAdapter;
 
     public ControlListenerContainer(AwsKopipesContext context, EventsMicrostore eventsMicrostore) {
+        this.context = context;
         this.eventsMicrostore = eventsMicrostore;
         CollectPipeline collectPipeline = CollectPipeline
                 .builder()

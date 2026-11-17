@@ -15,11 +15,13 @@ import java.util.List;
 import java.util.Objects;
 
 public class ControlTriggerContainer {
+    public final AwsKopipesContext context;
     public final PipelineAssembler assembler;
     public final DynamodbAdapter dynamoDbAdapter;
     public final UrlDao urlDao;
 
     public ControlTriggerContainer(AwsKopipesContext context, EventsMicrostore eventsMicrostore, UrlDao urlDao) {
+        this.context = context;
         this.urlDao = urlDao;
         CorrelatePipeline correlate = CorrelatePipeline
                 .builder()

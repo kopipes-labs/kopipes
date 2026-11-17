@@ -43,7 +43,8 @@ container.assembler
     .collect()
 ```
 
-`EmfReporter` writes only when `METRICS` includes `emf` (or `*`).
+`EmfReporter` writes only when `METRICS` includes `emf` (or `*`). From Java, use
+`.transformer(flow -> Handlers.collectMetrics(flow, container.context))` on the `PipelineRunner`.
 
 ### Fault events
 

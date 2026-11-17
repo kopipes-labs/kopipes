@@ -21,7 +21,7 @@ public class ControlListenerHandler implements RequestHandler<KinesisEvent, Void
     public Void handleRequest(KinesisEvent input, Context context) {
         new PipelineRunner<KinesisEvent>(container.assembler)
                 .headFlow(container.kinesisAdapter::fromKinesis)
-                .transformer(Handlers::collectMetrics)
+                .transformer(flow -> Handlers.collectMetrics(flow, container.context))
                 .run(input);
         return null;
     }
