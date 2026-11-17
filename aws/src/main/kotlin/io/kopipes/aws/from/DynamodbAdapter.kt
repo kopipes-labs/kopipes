@@ -69,10 +69,18 @@ class DynamodbAdapter(
             tags = mapOf(
                 "region" to dynamodbRecord.awsRegion
             ),
-            raw = DynamodbRaw(dynamodbRecord)
+            raw = DynamodbRaw(dynamodbRecord),
+            expired = isExpiry(dynamodbRecord),
         )
         return event
     }
+
+    /**
+     * A REMOVE of an item saved with `expire = true`. In AWS only the table's TTL deletes such items; LocalStack's
+     * TTL sweep is unreliable, so tests delete them themselves, the way TTL would.
+     */
+    internal fun isExpiry(dynamodbRecord: DynamodbEvent.DynamodbStreamRecord): Boolean =
+        dynamodbRecord.eventName == "REMOVE" && dynamodbRecord.dynamodb?.oldImage?.get("expire")?.bool == true
 
     private fun deriveTimestamp(dynamodbRecord: DynamodbEvent.DynamodbStreamRecord): Long? {
         val timestamp = dynamodbRecord.dynamodb?.newImage?.get("timestamp")?.n?.toLong()

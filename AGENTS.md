@@ -16,6 +16,8 @@ This project provides Kotlin utilities and pipeline abstractions for AWS Lambda 
   usually from an `AwsKopipesContext` (see docs/Wiring.md). Don't add registries, singletons or env var reads
   outside `EnvironmentConfig`.
 - `core` and `aws` must not depend on Spring; Spring support belongs in the `spring` module.
+- `cdk` (reusable CDK constructs) depends only on the CDK, never on `core` or `aws`; the env var names it sets are
+  checked against `AwsEnvironmentConfig` in its tests.
 
 ## Unit tests
 - Use arrange-act-assert style.

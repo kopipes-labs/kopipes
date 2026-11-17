@@ -12,7 +12,14 @@ import io.kopipes.core.sinks.withSaveOptions
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.onEach
 
-/** Pipeline flavor for correlating stream events. */
+/**
+ * Pipeline flavor for correlating stream events: saves each collected event again under its correlation key
+ * (`pk = <key>`, `sk = <event id>`), so an [EvaluatePipeline] can query everything heard for that key.
+ *
+ * With a [correlationKeySuffix] the events go to a side partition, `<key>.<suffix>`, that only evaluate pipelines with
+ * the same suffix react to. With [expire] and a [ttl], an item there is a **deadline**: when DynamoDB's TTL deletes
+ * it, evaluate pipelines built with `onExpired()` run (see docs/Deadlines.md).
+ */
 class CorrelatePipeline(
     id: String,
     val eventsMicrostore: EventsMicrostore,
@@ -25,6 +32,8 @@ class CorrelatePipeline(
     val eventCodec: EventCodec? = null,
     val isCollectedEvent: ((UnitOfWork) -> Boolean)? = null,
     val normalizer: ((UnitOfWork) -> UnitOfWork)? = null,
+    /** When the item expires, in epoch seconds. Wins over the `ttl` in the unit's meta and over [ttlDays]. */
+    val ttl: ((UnitOfWork) -> Long?)? = null,
 ) : Pipeline(id) {
 
     fun forCollectedEvents(uow: UnitOfWork): Boolean {
@@ -37,16 +46,27 @@ class CorrelatePipeline(
         return uow
     }
 
+    /** `<key>`, or `<key>.<suffix>` with a [correlationKeySuffix]: the shape [EvaluatePipeline] strips back to `<key>`. */
+    internal fun suffixed(correlationKey: String): String =
+        if (correlationKeySuffix.isEmpty()) correlationKey else "$correlationKey.$correlationKeySuffix"
+
     private fun addCorrelationKey(uow: UnitOfWork): UnitOfWork {
-        val correlationKey = correlationKeySupplier(uow)
-        val key = if (correlationKey != null) correlationKey + correlationKeySuffix else null
-        return uow.copy(key = key)
+        return uow.copy(key = correlationKeySupplier(uow)?.let(::suffixed))
+    }
+
+    /** Epoch seconds: [ttl], else the ttl the normalizer put in meta, else [ttlDays] after the event. */
+    internal fun ttlOf(uow: UnitOfWork): Long {
+        ttl?.invoke(uow)?.let { return it }
+        uow.meta?.get("ttl")?.toLongOrNull()?.let { return it }
+        val days = (ttlDays ?: CollectPipeline.DEFAULT_TTL_DAYS).toLong()
+        val from = (uow.event?.timestamp ?: System.currentTimeMillis()) / 1000
+        return from + days * 24 * 60 * 60
     }
 
     fun Flow<UnitOfWork>.save(fm: FaultManager): Flow<UnitOfWork> {
         val flow = with(fm) {
             this@save.mapNotFaulty { uow ->
-                val key = uow.key ?: correlationKeySupplier(uow)?.let { it + correlationKeySuffix } ?: uow.event?.id ?: "unknown"
+                val key = uow.key ?: correlationKeySupplier(uow)?.let(::suffixed) ?: uow.event?.id ?: "unknown"
                 val event: Event? = uow.event
                 val eventId = event?.id ?: "unknown"
                 val saveOptions = EventsMicrostore.SaveOptions(
@@ -55,7 +75,7 @@ class CorrelatePipeline(
                     discriminator = "CORREL",
                     timeStamp = event?.timestamp ?: System.currentTimeMillis(),
                     sequenceNumber = uow.meta?.get("sequenceNumber")?.toString() ?: uow.sequenceNumber,
-                    ttl = uow.meta?.get("ttl")?.toString()?.toLongOrNull() ?: ttlDays?.toLong() ?: CollectPipeline.DEFAULT_TTL_DAYS.toLong(),
+                    ttl = ttlOf(uow),
                     includeRaw = false,
                     expire = expire,
                     suffix = correlationKeySuffix,
@@ -99,6 +119,7 @@ class CorrelatePipeline(
         private var eventCodec: EventCodec? = null
         private var isCollectedEvent: ((UnitOfWork) -> Boolean)? = null
         private var normalizer: ((UnitOfWork) -> UnitOfWork)? = null
+        private var ttl: ((UnitOfWork) -> Long?)? = null
 
         fun eventsMicrostore(microstore: EventsMicrostore) = apply { this.eventsMicrostore = microstore }
         fun correlationKeySupplier(supplier: (UnitOfWork) -> String?) = apply { this.correlationKeySupplier = supplier }
@@ -111,6 +132,8 @@ class CorrelatePipeline(
         fun eventCodec(codec: EventCodec) = apply { this.eventCodec = codec }
         fun isCollectedEvent(predicate: (UnitOfWork) -> Boolean) = apply { this.isCollectedEvent = predicate }
         fun normalizer(normalizer: (UnitOfWork) -> UnitOfWork) = apply { this.normalizer = normalizer }
+        /** When the item expires, in epoch seconds; with [expire], the deadline an `onExpired()` rule reacts to. */
+        fun ttl(ttl: (UnitOfWork) -> Long?) = apply { this.ttl = ttl }
 
         override fun build(): CorrelatePipeline {
             val pipelineId = id ?: error("pipeline id is required")
@@ -127,6 +150,7 @@ class CorrelatePipeline(
                 eventCodec = eventCodec,
                 isCollectedEvent = isCollectedEvent,
                 normalizer = normalizer,
+                ttl = ttl,
             )
         }
     }

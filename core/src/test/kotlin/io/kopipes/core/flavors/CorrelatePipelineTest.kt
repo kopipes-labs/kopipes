@@ -59,12 +59,12 @@ class CorrelatePipelineTest {
             .id("correlate-1")
             .eventsMicrostore(microstore)
             .correlationKeySupplier { uow -> uow.event?.partitionKey }
-            .correlationKeySuffix("-suffix")
+            .correlationKeySuffix("suffix")
             .expire(true)
             .ttlDays(10)
             .build()
 
-        val event = TestEvent(id = "evt-100", partitionKey = "entity-42")
+        val event = TestEvent(id = "evt-100", partitionKey = "entity-42", timestamp = 1_000_000L)
         val uow = UnitOfWork(event = event)
         val fm = FaultManager(EventPublisherInMemory())
 
@@ -74,15 +74,39 @@ class CorrelatePipelineTest {
         val savedUow = result.first()
         val saveOptions = savedUow.saveOptions
         saveOptions.shouldNotBeNull()
-        saveOptions.pk shouldBe "entity-42-suffix"
+        saveOptions.pk shouldBe "entity-42.suffix"
         saveOptions.sk shouldBe "evt-100"
         saveOptions.discriminator shouldBe "CORREL"
-        saveOptions.ttl shouldBe 10L
+        saveOptions.ttl shouldBe 1_000L + 10 * 24 * 60 * 60
         saveOptions.expire shouldBe true
-        saveOptions.suffix shouldBe "-suffix"
+        saveOptions.suffix shouldBe "suffix"
         saveOptions.data shouldBe "evt-100"
         saveOptions.pipelineId shouldBe "correlate-1"
         saveOptions.awsRegion shouldBe null // the microstore fills in its own region
+    }
+
+    @Test
+    fun `a ttl function sets the deadline, ahead of the ttl in meta`(): Unit = runBlocking {
+        // Arrange
+        val pipeline = CorrelatePipeline.builder()
+            .id("deadline")
+            .eventsMicrostore(EventsMicrostoreInMemory())
+            .correlationKeySuffix("deadline")
+            .expire(true)
+            .ttl { uow -> uow.event!!.timestamp!! / 1000 + 120 }
+            .build()
+        val uow = UnitOfWork(
+            event = TestEvent(id = "evt-1", partitionKey = "p-7", timestamp = 1_000_000L),
+            meta = mapOf("ttl" to "999"),
+        )
+
+        // Act
+        val saved = with(pipeline) { flowOf(uow).save(FaultManager(EventPublisherInMemory())) }.toList().single()
+
+        // Assert
+        saved.saveOptions!!.pk shouldBe "p-7.deadline"
+        saved.saveOptions!!.ttl shouldBe 1_120L
+        saved.saveOptions!!.expire shouldBe true
     }
 
     @Test

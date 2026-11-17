@@ -10,91 +10,101 @@ open class AwsEnvironmentConfig : EnvironmentConfig() {
     }
 
     open fun eventTableName(): String? {
-        return System.getenv("EVENT_TABLE_NAME")
+        return env("EVENT_TABLE_NAME")
     }
 
     open fun entityTableName(): String? {
-        return System.getenv("ENTITY_TABLE_NAME")
+        return env("ENTITY_TABLE_NAME")
     }
 
     override fun awsRegion(): String {
-        return System.getenv("AWS_REGION") ?: System.getenv("AWS_DEFAULT_REGION") ?: "us-east-1"
+        return env("AWS_REGION") ?: env("AWS_DEFAULT_REGION") ?: "us-east-1"
     }
 
     override fun region(): String? {
-        return System.getenv("AWS_REGION") ?: System.getenv("AWS_DEFAULT_REGION")
+        return env("AWS_REGION") ?: env("AWS_DEFAULT_REGION")
     }
 
     override fun accountName(): String? {
-        return System.getenv("ACCOUNT_NAME")
+        return env("ACCOUNT_NAME")
     }
 
     override fun stage(): String? {
-        return System.getenv("STAGE")
+        return env("STAGE")
     }
 
     override fun serverlessStage(): String? {
-        return System.getenv("SERVERLESS_STAGE")
+        return env("SERVERLESS_STAGE")
     }
 
     override fun service(): String? {
-        return System.getenv("SERVICE")
+        return env("SERVICE")
     }
 
     open fun awsDefaultRegion(): String? {
-        return System.getenv("AWS_DEFAULT_REGION")
+        return env("AWS_DEFAULT_REGION")
     }
 
     open fun endPointUrl(): String? {
-        return System.getenv("AWS_ENDPOINT_URL")
+        return env("AWS_ENDPOINT_URL")
     }
 
     open fun busName(): String? {
-        return System.getenv("BUS_NAME")
+        return env("BUS_NAME")
     }
 
     open fun busSource(): String? {
-        return System.getenv("BUS_SRC")
+        return env("BUS_SRC")
     }
 
     open fun busEndPointId(): String? {
-        return System.getenv("BUS_ENDPOINT_ID")
+        return env("BUS_ENDPOINT_ID")
     }
 
     open fun busTimeout(): Long? {
-        return System.getenv("BUS_TIMEOUT")?.toLongOrNull()
+        return env("BUS_TIMEOUT")?.toLongOrNull()
     }
 
     open fun cloudWatchParallel(): Int? {
-        return System.getenv("CW_PARALLEL")?.toIntOrNull()
+        return env("CW_PARALLEL")?.toIntOrNull()
     }
 
     open fun cloudWatchTimeout(): Long? {
-        return System.getenv("CW_TIMEOUT")?.toLongOrNull()
+        return env("CW_TIMEOUT")?.toLongOrNull()
     }
 
     open fun dynamodbTimeout(): Long? {
-        return System.getenv("DYNAMODB_TIMEOUT")?.toLongOrNull()
+        return env("DYNAMODB_TIMEOUT")?.toLongOrNull()
     }
 
     override fun project(): String? {
-        return System.getenv("PROJECT")
+        return env("PROJECT")
     }
 
     override fun serverlessProject(): String? {
-        return System.getenv("SERVERLESS_PROJECT")
+        return env("SERVERLESS_PROJECT")
     }
 
     open fun bucketName(): String? {
-        return System.getenv("BUCKET_NAME")
+        return env("BUCKET_NAME")
     }
 
     open fun nameSpace(): String? {
-        return System.getenv("NAMESPACE")
+        return env("NAMESPACE")
+    }
+
+    /** The fault monitor's SNS topic. */
+    open fun topicArn(): String? {
+        return env("TOPIC_ARN")
+    }
+
+    /** Running inside LocalStack (or SAM local), whose events miss some fields AWS sets. */
+    open fun isLocalStack(): Boolean {
+        return env("LOCALSTACK_HOSTNAME") != null || env("AWS_SAM_LOCAL") == "true"
     }
 
     open fun claimCheckBucketName(): String? {
-        return System.getenv("CLAIMCHECK_BUCKET_NAME")
+        return env("CLAIMCHECK_BUCKET_NAME")
     }
 }
 

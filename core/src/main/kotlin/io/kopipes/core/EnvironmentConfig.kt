@@ -3,66 +3,72 @@ package io.kopipes.core
 /** Configuration backed by environment variables for stream operations. */
 open class EnvironmentConfig {
 
+    /**
+     * Reads one environment variable. Every other method goes through here, so a subclass can supply values from
+     * somewhere else (a map in a test, for example) by overriding just this.
+     */
+    protected open fun env(name: String): String? = System.getenv(name)
+
     open fun ttl(): Int? {
-        return System.getenv("TTL")?.toIntOrNull()
+        return env("TTL")?.toIntOrNull()
     }
 
     open fun streamRetryEnabled(): Boolean {
-        val enabled = System.getenv("STREAM_RETRY_ENABLED")
+        val enabled = env("STREAM_RETRY_ENABLED")
         return enabled != null && enabled.isNotEmpty() && enabled == "true"
     }
 
     open fun itemLevelRetryEnabled(): Boolean {
-        val enabled = System.getenv("ITEM_LEVEL_RETRY_ENABLED")
+        val enabled = env("ITEM_LEVEL_RETRY_ENABLED")
         return enabled != null && enabled.isNotEmpty() && enabled == "true"
     }
 
     open fun maxPublishRequestSize(): Int? {
-        return System.getenv("PUBLISH_MAX_REQ_SIZE")?.toIntOrNull()
+        return env("PUBLISH_MAX_REQ_SIZE")?.toIntOrNull()
     }
 
     open fun maxRequestSize(): Int? {
-        return System.getenv("MAX_REQ_SIZE")?.toIntOrNull()
+        return env("MAX_REQ_SIZE")?.toIntOrNull()
     }
 
     open fun publishBatchSize(): Int? {
-        return System.getenv("PUBLISH_BATCH_SIZE")?.toIntOrNull()
+        return env("PUBLISH_BATCH_SIZE")?.toIntOrNull()
     }
 
     open fun batchSize(): Int? {
-        return System.getenv("BATCH_SIZE")?.toIntOrNull()
+        return env("BATCH_SIZE")?.toIntOrNull()
     }
 
     open fun publishParallel(): Int? {
-        return System.getenv("PUBLISH_PARALLEL")?.toIntOrNull()
+        return env("PUBLISH_PARALLEL")?.toIntOrNull()
     }
 
     open fun parallel(): Int? {
-        return System.getenv("PARALLEL")?.toIntOrNull()
+        return env("PARALLEL")?.toIntOrNull()
     }
 
     open fun timeout(): Long? {
-        return System.getenv("TIMEOUT")?.toLongOrNull()
+        return env("TIMEOUT")?.toLongOrNull()
     }
 
     open fun skip(): Boolean {
-        return System.getenv("SKIP")?.toBoolean() ?: false
+        return env("SKIP")?.toBoolean() ?: false
     }
 
     open fun unhealthy(): Boolean {
-        return System.getenv("UNHEALTHY")?.toBoolean() ?: false
+        return env("UNHEALTHY")?.toBoolean() ?: false
     }
 
     open fun awsLambdaFunctionName(): String? {
-        return System.getenv("AWS_LAMBDA_FUNCTION_NAME")
+        return env("AWS_LAMBDA_FUNCTION_NAME")
     }
 
     open fun accountName(): String? {
-        return System.getenv("ACCOUNT_NAME")
+        return env("ACCOUNT_NAME")
     }
 
     open fun region(): String? {
-        return System.getenv("AWS_REGION") ?: System.getenv("AWS_DEFAULT_REGION")
+        return env("AWS_REGION") ?: env("AWS_DEFAULT_REGION")
     }
 
     open fun awsRegion(): String {
@@ -70,27 +76,27 @@ open class EnvironmentConfig {
     }
 
     open fun stage(): String? {
-        return System.getenv("STAGE")
+        return env("STAGE")
     }
 
     open fun serverlessStage(): String? {
-        return System.getenv("SERVERLESS_STAGE")
+        return env("SERVERLESS_STAGE")
     }
 
     open fun service(): String? {
-        return System.getenv("SERVICE")
+        return env("SERVICE")
     }
 
     open fun project(): String? {
-        return System.getenv("PROJECT")
+        return env("PROJECT")
     }
 
     open fun serverlessProject(): String? {
-        return System.getenv("SERVERLESS_PROJECT")
+        return env("SERVERLESS_PROJECT")
     }
 
     open fun metrics(): String? {
-        return System.getenv("METRICS")
+        return env("METRICS")
     }
 
     open fun isMetricEnabled(key: String): Boolean {

@@ -78,7 +78,9 @@ class EvaluatePipelineTest {
         private val suffix: String? = "v1",
         private val deleted: Boolean = false,
         private val latched: Boolean = false,
+        private val expired: Boolean = false,
     ) : TableChangeEvent() {
+        override fun isExpired(): Boolean = expired
         override fun getPk(): String? = pk
         override fun getTtl(): String? = ttl
         override fun getData(): String? = data
@@ -115,7 +117,8 @@ class EvaluatePipelineTest {
             discriminator = discriminator,
             suffix = suffix,
             deleted = deleted,
-            latched = latched
+            latched = latched,
+            expired = expired,
         )
     }
 
@@ -324,6 +327,7 @@ class EvaluatePipelineTest {
             pk = "order#99",
             data = "d1",
             discriminator = "CORREL",
+            suffix = null, // the main partition: a pipeline without a suffix reacts only to these
             event = """{"id":"init-1","type":"TestEvent"}"""
         )
         val uow = UnitOfWork(event = tce)

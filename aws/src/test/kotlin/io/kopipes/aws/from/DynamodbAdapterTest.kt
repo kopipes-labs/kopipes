@@ -268,6 +268,54 @@ class DynamodbAdapterTest {
     }
 
     // ============================================================================
+    // Expired deadlines
+    // ============================================================================
+
+    private fun deadlineImage(expire: Boolean) = mapOf<String, EventAV?>(
+        "pk" to EventAV().withS("p-7.deadline"),
+        "sk" to EventAV().withS("p-7.submitted"),
+        "discriminator" to EventAV().withS("CORREL"),
+        "suffix" to EventAV().withS("deadline"),
+        "ttl" to EventAV().withN("1700000120"),
+        "expire" to EventAV().withBOOL(expire),
+        "event" to EventAV().withS("""{"id":"p-7.submitted"}"""),
+    )
+
+    @Test
+    fun `a REMOVE of an item saved with expire is an expired deadline, read from the old image`() {
+        // Arrange
+        val record = createDynamodbRecord(eventName = "REMOVE", oldImage = deadlineImage(expire = true))
+
+        // Act
+        val event = adapter.buildEvent(record)
+
+        // Assert
+        assertTrue(event.isExpired())
+        assertEquals("p-7.deadline", event.getPk())
+        assertEquals("CORREL", event.getDiscriminator())
+        assertEquals("deadline", event.getSuffix())
+        assertEquals("1700000120", event.getTtl())
+        assertEquals("""{"id":"p-7.submitted"}""", event.getEvent())
+    }
+
+    @Test
+    fun `other removes and inserts are not expiries`() {
+        // Arrange
+        val removeWithoutExpire = createDynamodbRecord(eventName = "REMOVE", oldImage = deadlineImage(expire = false))
+        val insert = createDynamodbRecord(eventName = "INSERT", newImage = deadlineImage(expire = true))
+
+        // Act
+        val removed = adapter.buildEvent(removeWithoutExpire)
+        val inserted = adapter.buildEvent(insert)
+
+        // Assert
+        assertFalse(removed.isExpired())
+        assertNull(removed.getPk())
+        assertFalse(inserted.isExpired())
+        assertEquals("p-7.deadline", inserted.getPk())
+    }
+
+    // ============================================================================
     // Helper functions
     // ============================================================================
 

@@ -25,6 +25,12 @@ abstract class TableChangeEvent : Event {
     abstract fun getDouble(fieldName: String): Double?
     abstract fun getLong(fieldName: String): Long?
 
+    /**
+     * The table's TTL deleted an item saved with `expire = true`: a deadline passed. The getters then read the item
+     * as it was before the deletion.
+     */
+    open fun isExpired(): Boolean = false
+
     inline fun <reified T> getDecodedObject(fieldName: String): T? {
         return getS(fieldName)?.let {
             Json.decodeFromString<T>(it)

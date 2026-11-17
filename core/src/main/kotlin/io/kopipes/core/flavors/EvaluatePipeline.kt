@@ -11,7 +11,19 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 
-/** Pipeline flavor that evaluates collected and correlated events and publishes higher-order events. */
+/**
+ * Pipeline flavor that evaluates collected and correlated events and publishes higher-order events.
+ *
+ * - [emittedEventId]: the id of each emitted event. Without it the id is derived from the stream record, which a
+ *   replay changes; with a deterministic id (such as `<correlation key>.<pipeline id>`), a rule that fires again
+ *   emits the same event, and consumers drop the repeat.
+ * - [correlationKeySuffix]: the pipeline reacts only to items in the side partition `<key>.<suffix>`.
+ * - [onCorrelated]: the pipeline reacts only to correlation items (a [CorrelatePipeline]'s inserts), not to the
+ *   collected events too. Use it when a rule judges what's correlated under a key, so it fires once per event.
+ * - [onExpired]: the pipeline reacts only to deadlines, items a [CorrelatePipeline] saved with `expire` and a ttl,
+ *   when the table's TTL deletes them. It evaluates the events correlated under the key without the suffix (the
+ *   whole entity, not the deadline's side partition), and the emitted events are dated at the deadline.
+ */
 class EvaluatePipeline(
     id: String,
     val eventPublisher: EventPublisher? = null,
@@ -27,15 +39,21 @@ class EvaluatePipeline(
     val isEvaluateEvent: ((UnitOfWork) -> Boolean)? = null,
     val normalizer: ((UnitOfWork) -> UnitOfWork)? = null,
     val consistentRead: Boolean = true,
+    val emittedEventId: ((UnitOfWork) -> String)? = null,
+    val onExpired: Boolean = false,
+    val onCorrelated: Boolean = false,
 ) : Pipeline(id) {
 
     fun forEvents(uow: UnitOfWork): Boolean {
         if (isEvaluateEvent != null) return isEvaluateEvent.invoke(uow)
         val event = uow.event
         if (event is TableChangeEvent) {
+            if (event.isExpired()) return onExpired && event.getDiscriminator() == "CORREL"
+            if (onExpired) return false
+            if (onCorrelated) return !event.isDeleted() && event.getDiscriminator() == "CORREL"
             return !event.isDeleted() && (event.getDiscriminator() == "CORREL" || event.getEvent() != null)
         }
-        return event != null
+        return !onExpired && !onCorrelated && event != null
     }
 
     fun defaultUnmarshall(eventAsString: String): Event {
@@ -62,15 +80,19 @@ class EvaluatePipeline(
         )
 
         val correlationKey = if (correlation) pk else data
-        val partitionKey = correlationKey?.replace(".${suffix}", "")
+        // The key without the side partition's `.<suffix>`; the microstore writes "no suffix" as "".
+        val partitionKey = if (suffix.isNullOrEmpty()) correlationKey else correlationKey?.removeSuffix(".$suffix")
+        val expiredAt = if (tableChangeEvent.isExpired()) tableChangeEvent.getTtl()?.toLongOrNull()?.times(1000) else null
 
-        return uow.withQueryParams(queryParams).copy(
+        return uow.withQueryParams(
+            if (expiredAt != null) queryParams.copy(pk = partitionKey) else queryParams
+        ).copy(
             event = eventAsObject,
             meta = (uow.meta ?: emptyMap()) + mapOf(
                 "eventId" to "${tableChangeEvent.id}.${id}",
                 "partitionKey" to partitionKey,
-                "suffix" to (suffix ?: "")
-            )
+                "suffix" to (suffix ?: ""),
+            ) + (expiredAt?.let { mapOf(EXPIRED_AT to it.toString()) } ?: emptyMap())
         )
     }
 
@@ -86,11 +108,13 @@ class EvaluatePipeline(
 
     fun Flow<UnitOfWork>.complex(fm: FaultManager): Flow<UnitOfWork> {
         return if (expression == null) {
-            this.map { uow ->
-                uow.copy(
-                    triggers = listOfNotNull(uow.event)
-                )
-            }
+            this
+                .filter { uow -> fm.faulty(uow) { onCorrelationKeySuffix(uow) } == true }
+                .map { uow ->
+                    uow.copy(
+                        triggers = listOfNotNull(uow.event)
+                    )
+                }
         } else {
             this
                 .filter { uow -> fm.faulty(uow) { onCorrelationKeySuffix(uow) } == true }
@@ -110,8 +134,9 @@ class EvaluatePipeline(
         val emit = this.emit ?: return emptyList()
         val triggeringEvent = uow.event ?: return emptyList()
 
-        val eventId = uow.meta?.get("eventId")
+        val eventId = emittedEventId?.invoke(uow) ?: uow.meta?.get("eventId")
         val partitionKey = uow.meta?.get("partitionKey")
+        val expiredAt = uow.meta?.get(EXPIRED_AT)?.toLongOrNull()
         val trigger = uow.triggers?.lastOrNull()
         val aggregatedTags = aggregateTags(uow)
         val mappedTriggers = uow.triggers?.map {
@@ -123,7 +148,7 @@ class EvaluatePipeline(
         return resultEvents.map { e ->
             val event = e.copyEvent(
                 id = eventId,
-                timestamp = trigger?.timestamp,
+                timestamp = expiredAt ?: trigger?.timestamp,
                 partitionKey = partitionKey,
                 tags = aggregatedTags,
                 triggers = mappedTriggers,
@@ -173,6 +198,9 @@ class EvaluatePipeline(
     }
 
     companion object {
+        /** The meta key of an expired deadline's time, in epoch milliseconds. */
+        const val EXPIRED_AT = "expiredAt"
+
         @JvmStatic
         fun builder() = Builder()
     }
@@ -191,6 +219,10 @@ class EvaluatePipeline(
         private var isEvaluateEvent: ((UnitOfWork) -> Boolean)? = null
         private var normalizer: ((UnitOfWork) -> UnitOfWork)? = null
         private var consistentRead: Boolean = true
+        private var emittedEventId: ((UnitOfWork) -> String)? = null
+        private var onExpired: Boolean = false
+        private var oneEventPerCorrelationKey: Boolean = false
+        private var onCorrelated: Boolean = false
 
         fun eventPublisher(eventPublisher: EventPublisher?) = apply { this.eventPublisher = eventPublisher }
         fun eventsMicrostore(eventsMicrostore: EventsMicrostore) = apply { this.eventsMicrostore = eventsMicrostore }
@@ -210,10 +242,24 @@ class EvaluatePipeline(
         fun normalizer(normalizer: (UnitOfWork) -> UnitOfWork) = apply { this.normalizer = normalizer }
         fun normalizerJava(normalizer: java.util.function.Function<UnitOfWork, UnitOfWork>) = apply { this.normalizer = { uow -> normalizer.apply(uow) } }
         fun consistentRead(consistentRead: Boolean) = apply { this.consistentRead = consistentRead }
+        /** The id of each emitted event, from the normalized unit of work; see [correlationKey]. */
+        fun emittedEventId(emittedEventId: (UnitOfWork) -> String) = apply { this.emittedEventId = emittedEventId }
+        /** `<correlation key>.<pipeline id>`: the rule emits at most one event per key, however often it fires. */
+        fun oneEventPerCorrelationKey() = apply { this.oneEventPerCorrelationKey = true }
+        /** React only to correlation items, not to collected events; see [EvaluatePipeline]. */
+        fun onCorrelated() = apply { this.onCorrelated = true }
+        /** React only to expired deadlines; see [EvaluatePipeline]. */
+        fun onExpired() = apply { this.onExpired = true }
 
         override fun build(): EvaluatePipeline {
+            val pipelineId = id ?: throw IllegalArgumentException("id is required")
+            val perKey: ((UnitOfWork) -> String)? = if (oneEventPerCorrelationKey) {
+                { uow -> "${uow.correlationKey() ?: error("No correlation key for $pipelineId")}.$pipelineId" }
+            } else {
+                null
+            }
             return EvaluatePipeline(
-                id = id ?: throw IllegalArgumentException("id is required"),
+                id = pipelineId,
                 eventPublisher = eventPublisher,
                 eventsMicrostore = eventsMicrostore ?: throw IllegalArgumentException("eventsMicrostore is required"),
                 onContentType = onContentType,
@@ -227,7 +273,13 @@ class EvaluatePipeline(
                 isEvaluateEvent = isEvaluateEvent,
                 normalizer = normalizer,
                 consistentRead = consistentRead,
+                emittedEventId = emittedEventId ?: perKey,
+                onExpired = onExpired,
+                onCorrelated = onCorrelated,
             )
         }
     }
 }
+
+/** The key the triggering event was correlated under, without the pipeline's suffix. Set by the normalizer. */
+fun UnitOfWork.correlationKey(): String? = meta?.get("partitionKey")

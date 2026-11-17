@@ -21,6 +21,8 @@ data class DynamoDbChangeEvent(
     override val eem: EnvelopeEncryptionMetadata? = null,
     override val triggers: List<EventReference>? = null,
     override val type: String? = null,
+    /** A REMOVE of an item saved with `expire = true`; see [TableChangeEvent.isExpired]. */
+    val expired: Boolean = false,
 ) : TableChangeEvent() {
 
     val recordPair: RecordPair?
@@ -32,17 +34,22 @@ data class DynamoDbChangeEvent(
     val oldImage: RecordImage?
         get() = recordPair?.old
 
-    override fun getPk(): String? = newImage?.getPk()
-    override fun getTtl(): String? = newImage?.getTtl()
-    override fun getData(): String? = newImage?.getData()
-    override fun getEvent(): String? = newImage?.getEvent()
-    override fun getDiscriminator(): String? = newImage?.getDiscriminator()
-    override fun getSuffix(): String? = newImage?.getSuffix()
-    override fun isDeleted(): Boolean = newImage?.isDeleted() == true
-    override fun latched(): Boolean = newImage?.latched() == true
-    override fun getS(fieldName: String): String? = newImage?.getS(fieldName)
-    override fun getDouble(fieldName: String): Double? = newImage?.getDouble(fieldName)
-    override fun getLong(fieldName: String): Long? = newImage?.getLong(fieldName)
+    /** The image the getters read: the new one, or for an expired item the one TTL deleted. */
+    private val image: RecordImage?
+        get() = if (expired) oldImage else newImage
+
+    override fun getPk(): String? = image?.getPk()
+    override fun getTtl(): String? = image?.getTtl()
+    override fun getData(): String? = image?.getData()
+    override fun getEvent(): String? = image?.getEvent()
+    override fun getDiscriminator(): String? = image?.getDiscriminator()
+    override fun getSuffix(): String? = image?.getSuffix()
+    override fun isDeleted(): Boolean = image?.isDeleted() == true
+    override fun latched(): Boolean = image?.latched() == true
+    override fun getS(fieldName: String): String? = image?.getS(fieldName)
+    override fun getDouble(fieldName: String): Double? = image?.getDouble(fieldName)
+    override fun getLong(fieldName: String): Long? = image?.getLong(fieldName)
+    override fun isExpired(): Boolean = expired
 
     override fun toString(): String {
         return Json.encodeToString(serializer(), this)
