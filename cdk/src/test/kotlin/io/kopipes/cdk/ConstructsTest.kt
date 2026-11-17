@@ -116,6 +116,36 @@ class KopipesFunctionTest {
     }
 }
 
+class KopipesFunctionSourcesTest {
+
+    @Test
+    fun `reads a queue, and any table's stream`() {
+        // Arrange
+        val stack = testStack("payments-core-checking-egress-gateway")
+        val queue = software.amazon.awscdk.services.sqs.Queue.Builder.create(stack, "Queue").build()
+        val ledger = software.amazon.awscdk.services.dynamodb.TableV2.Builder.create(stack, "Ledger")
+            .partitionKey(software.amazon.awscdk.services.dynamodb.Attribute.builder().name("ENTRY_ID")
+                .type(software.amazon.awscdk.services.dynamodb.AttributeType.STRING).build())
+            .dynamoStream(software.amazon.awscdk.services.dynamodb.StreamViewType.NEW_AND_OLD_IMAGES)
+            .build()
+
+        // Act
+        KopipesFunction(stack, "simulator", KopipesFunctionProps(code = testCode, handler = "h")).receives(queue)
+        KopipesFunction(stack, "ledger", KopipesFunctionProps(code = testCode, handler = "h"))
+            .triggeredBy(ledger, retryAttempts = -1)
+            .uses(ledger, "LEDGER_TABLE_NAME")
+
+        // Assert
+        val template = stack.template()
+        template.resourceCountIs("AWS::Lambda::EventSourceMapping", 2)
+        template.hasResourceProperties("AWS::Lambda::EventSourceMapping", mapOf("MaximumRetryAttempts" to -1))
+        template.hasResourceProperties(
+            "AWS::Lambda::Function",
+            mapOf("Environment" to mapOf("Variables" to Match.objectLike(mapOf("LEDGER_TABLE_NAME" to Match.anyValue())))),
+        )
+    }
+}
+
 class EventsTableTest {
 
     @Test

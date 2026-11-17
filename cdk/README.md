@@ -35,7 +35,7 @@ class ControlServiceStack(scope: Construct, props: ServiceProps) : KopipesStack(
 | Construct | Builds | Notes |
 |---|---|---|
 | `KopipesStack` | The base stack | `name(suffix)` gives `<service>-<stage>-<suffix>`; `globalName()` gives `<org>-<service>-<stage>-<region>` for buckets. `importBus()` and `importChannel()` find the subsystem's hub by name |
-| `KopipesFunction` | A Java 21 Lambda function running a kopipes handler | Sets `STAGE`, `SERVICE` and, when it publishes, `BUS_NAME` and `BUS_SRC`, and grants `events:PutEvents`. Then `listenTo(channel)`, `triggeredBy(table)`, `uses(table)`, `retryStream()` |
+| `KopipesFunction` | A Java 21 Lambda function running a kopipes handler | Sets `STAGE`, `SERVICE` and, when it publishes, `BUS_NAME` and `BUS_SRC`, and grants `events:PutEvents`. Then `listenTo(channel)`, `triggeredBy(table)` (any table with a stream), `receives(queue)`, `uses(table)`, `retryStream()` |
 | `EventsTable` | A `pk`/`sk` table with `ttl`, a stream and the `gsi1` index | For an events microstore or a BFF's views |
 | `EventHub` | The bus, the default Kinesis channel `s1`, the archive and log groups | Deploy it first: everything else finds it by name |
 | `EventLake` | Bus → Firehose → S3, everything except faults | Gzipped, under `<region>/`, read by the replay tool |

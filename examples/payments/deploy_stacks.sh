@@ -22,6 +22,8 @@ STACKS=(
 	"payments-event-hub"
 	"payments-event-fault-monitor"
 	"payments-event-lake"
+	"payments-core-checking-ingress-gateway"
+	"payments-core-checking-egress-gateway"
 	"payments-control-service"
 	"payments-bff"
 )

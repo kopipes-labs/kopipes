@@ -18,11 +18,13 @@ Running example: payment `p-7`, 100 USD from checking account `C-1` to card `K-2
 | `payments-event-fault-monitor` | ✅ | Fault monitor | `FaultMonitor` construct, `FaultMonitorTransform` |
 | `payments-control-service` | ✅ | Control service | `CollectPipeline`, `CorrelatePipeline`, `EvaluatePipeline`, deadlines |
 | `payments-bff` | ✅ | BFF | REST API, `MaterializePipeline`, `CdcPipeline` |
-| `payments-core-checking-*-gateway` | stage 2 | ESG (legacy) | |
+| `payments-core-checking-ingress-gateway` | ✅ | ESG ingress (legacy, CDC) | `TranslatePipeline`, `MaterializePipeline` |
+| `payments-core-checking-egress-gateway` | ✅ | ESG egress (legacy, API call) | `ActionPipeline`, `CircuitBreaker` |
 | `payments-card-processor-*-gateway` | stage 3 | ESG (third party) | |
 | `payments-egress-gateway` | stage 4 | ESG (subsystem) | |
 
-Until the gateways exist, the integration tests play them: they publish the gateways' events to the bus.
+Core checking is simulated by its gateways (see [Simulation mode](#simulation-mode)). Until the card processor's
+gateways exist, the integration tests play them: they publish the deposit's answer to the bus.
 
 ## How a payment flows
 
@@ -33,8 +35,9 @@ customer ─PUT─► BFF ─► views table ─(stream)─► BFF trigger ─�
          ▼
 control service listener ─► events table ─(stream)─► control service trigger ─► bus: WITHDRAWAL_REQUESTED
                                                                                  │
-                     (stage 2: the core checking gateways; for now, the tests) ◄─┘
-                     ─► bus: FUNDS_WITHDRAWN ─► … ─► DEPOSIT_REQUESTED ─► … ─► PAYMENT_COMPLETED
+   core checking egress ─► core checking ◄────────────────────────────────────────┘
+                              │ (its ledger, through change data capture)
+   core checking ingress ◄────┘ ─► bus: FUNDS_WITHDRAWN ─► … ─► DEPOSIT_REQUESTED ─► (stage 3: the card) ─► PAYMENT_COMPLETED
          ▲
 BFF listener ─► views table: what each payment has heard ─► GET /payments/p-7
 ```
@@ -98,6 +101,38 @@ default channel ─► listener ─► events table ─► (stream) ─► trigg
   heard, keeping the first. `status` is computed when read, from *which* events were heard, never their order: the
   spec's first-match table in [PaymentView.kt](payments-bff/app/src/main/kotlin/org/myorg/payments/PaymentView.kt).
 - `X-Customer-Id` is a stand-in for an access token. **It is not authentication and must not ship.**
+
+### Core checking gateways
+
+Core checking is a legacy system: it closes at night, is sometimes down, and has no idempotency keys. Its two
+gateways are the subsystem's edge with it: **act, then hear back**.
+
+- **Egress** ([CalledOnce.kt](payments-core-checking-egress-gateway/app/src/main/kotlin/org/myorg/payments/CalledOnce.kt)):
+  an `ActionPipeline` per request type calls core checking and publishes nothing. Each request is **called once**:
+  claimed in its own table before the call, so a redelivered event never calls twice. A call that timed out is never
+  retried blindly (a second call could debit twice): it becomes a fault, and the operator checks the ledger. A
+  `CircuitBreaker` (state shared in DynamoDB) stops calls while core checking is down or closed; the listener runs
+  with stream retry and `retryAttempts = -1`, so requests wait on the channel, in order, instead of being dropped.
+- **Ingress** ([Ledger.kt](payments-core-checking-ingress-gateway/app/src/main/kotlin/org/myorg/payments/Ledger.kt)):
+  a `TranslatePipeline` turns ledger rows (change data capture; here, a table with a stream) into our events:
+  semantic translation of core checking's codes into our reasons, an id per ledger entry, the row kept whole in `raw`.
+  A row knows only its own entry, so the gateway remembers each `WITHDRAWAL_REQUESTED`'s payment
+  (`MaterializePipeline`) and fills in the snapshot from it. A row heard before its request waits: a retryable error
+  and stream retry, not a fault.
+
+### Simulation mode
+
+Each egress gateway has one setting, `SIMULATE` (on locally, never in production). With it on, the gateway doesn't
+call the outside system: it sends the answer that system would have sent, in its own format, to an SQS queue with a
+delay; a simulator function then delivers it to the ingress gateway's real input (for core checking, a ledger row).
+The ingress gateway can't tell the difference. The answer depends only on the account:
+
+| Account | Simulated answer |
+|---|---|
+| `C-2` | Withdrawal rejected: insufficient funds |
+| `C-9` | Withdrawal rejected: someone else's account (`account-not-found`) |
+| `C-5` | Withdrawal posted, but the refund is rejected (account closed) |
+| any other | Posted |
 
 ### Common components
 

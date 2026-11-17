@@ -40,7 +40,7 @@ testing {
                 implementation(libs.kotlinx.serialization.json)
                 implementation(libs.slf4j.simple)
 
-                implementation(project(":examples:payments:common-app"))
+                implementation(project(":examples:payments:common-gateway"))
             }
             targets {
                 all {

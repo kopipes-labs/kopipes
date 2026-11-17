@@ -5,6 +5,7 @@ import aws.sdk.kotlin.services.dynamodb.DynamoDbClient
 import aws.sdk.kotlin.services.dynamodb.model.AttributeValue
 import aws.sdk.kotlin.services.dynamodb.model.DeleteItemRequest
 import aws.sdk.kotlin.services.dynamodb.model.QueryRequest
+import aws.sdk.kotlin.services.dynamodb.model.ScanRequest
 import aws.sdk.kotlin.services.eventbridge.EventBridgeClient
 import aws.sdk.kotlin.services.eventbridge.model.PutEventsRequest
 import aws.sdk.kotlin.services.eventbridge.model.PutEventsRequestEntry
@@ -21,7 +22,6 @@ import aws.smithy.kotlin.runtime.net.url.Url
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -174,6 +174,16 @@ object LocalPayments {
         }
     }
 
+    // ---- Core checking (simulated): its ledger ----
+
+    /** The ledger rows core checking posted for [paymentId]: one per call that reached it. */
+    suspend fun ledgerRows(paymentId: String): List<Map<String, String>> =
+        dynamoDb.scan(ScanRequest {
+            tableName = "payments-core-checking-ingress-gateway-local-ledger"
+            filterExpression = "REF_NO = :r"
+            expressionAttributeValues = mapOf(":r" to AttributeValue.S(paymentId))
+        }).items.orEmpty().map { item -> item.mapValues { (it.value as AttributeValue.S).value } }
+
     // ---- Waiting ----
 
     suspend fun <T : Any> poll(timeout: Duration, what: String, attempt: suspend () -> T?): T {
@@ -185,5 +195,4 @@ object LocalPayments {
         }
     }
 
-    fun JsonObject.string(key: String) = this[key]?.jsonPrimitive?.contentOrNull
 }
