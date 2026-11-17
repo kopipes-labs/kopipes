@@ -7,9 +7,19 @@ fails, a deadline per step); gateways stand between the subsystem and the outsid
 - [PaymentsSystemSpecs.md](PaymentsSystemSpecs.md): the system (L1), and the external event catalog.
 - [PaymentsServiceSpecs.md](PaymentsServiceSpecs.md): each service as a black box (L2). The code follows it.
 
+![Payments subsystem: context diagram](diagrams/payments-context.drawio.svg)
+
+*The subsystem and the actors around it: the customer, the operator, core checking, the card processor and
+Notifications ([PaymentsServiceSpecs.md › Context](PaymentsServiceSpecs.md#1-context)).*
+
 Running example: payment `p-7`, 100 USD from checking account `C-1` to card `K-2`, for customer `u-42`.
 
 ## What is built
+
+![Payments subsystem: the services](diagrams/payments-services.drawio.svg)
+
+*The services inside the subsystem and the hub that connects them
+([PaymentsServiceSpecs.md › Services](PaymentsServiceSpecs.md#4-services)).*
 
 | Service | Status | Pattern | kopipes pieces |
 |---|---|---|---|
