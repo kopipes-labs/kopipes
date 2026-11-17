@@ -9,6 +9,9 @@ While written in Kotlin, AWS Lambda Stream for the JVM is designed to be Java-fr
 *   **Modern APIs**: Clean, builder-based configuration for pipelines.
 *   **Seamless Integration**: Use standard Java 17+ features like Records and Sealed Classes for your event models.
 
+New to the framework? Read [How kopipes works](Concepts.md) first: one diagram and a glossary. To add it to your
+build, see [Installation](../README.md#installation).
+
 ## Quick Start
 
 ### 1. Define your Event
@@ -118,7 +121,9 @@ The `UnitOfWork` is a standard Java-compatible data class. You can access the ev
 *   `uow.getExtensions()`: Access custom state.
 
 ### Java-Friendly Flavors
-Pipeline "flavors" like `CdcPipeline` or `EvaluatePipeline` provide `toEventJava` and other methods that accept standard Java `Function` or `BiFunction` instead of Kotlin lambdas.
+Pipeline "flavors" like `CdcPipeline` or `EvaluatePipeline` provide `toEventJava`, `expressionJava`, `emitJava` and
+other methods that accept standard `java.util.function` types instead of Kotlin lambdas. See
+[Pipelines](Pipelines.md) for what each flavor does.
 
 ### Handlers and PipelineRunner
 *   `PipelineRunner`: Orchestrates the execution of the flow in a blocking manner suitable for Lambda.
@@ -151,6 +156,9 @@ pipelines, build the container with an `EventPublisherInMemory` in its context a
 
 ## Documentation for Developers
 
+* [How kopipes works](Concepts.md): the flow of a batch, the building blocks, a glossary
+* [Pipelines](Pipelines.md): every flavor, with samples
+* [Wiring a kopipes Lambda](Wiring.md)
 * [Framework Features](Features.md)
 * [Understanding Events and Event Types](Events.md)
 * [Envelope Encryption](Encryption.md)
@@ -158,7 +166,9 @@ pipelines, build the container with an `EventPublisherInMemory` in its context a
 
 ## Examples
 
-The [URL Shortener](../examples/urlshortener) example demonstrates how to use the framework in a Java-based project.
+The [URL Shortener](../examples/urlshortener) example demonstrates how to use the framework in a Java-based project,
+CDK stacks included. For a larger system, read the [Payments](../examples/payments/README.md) example: it is Kotlin,
+but the wiring translates one to one.
 
 ---
 

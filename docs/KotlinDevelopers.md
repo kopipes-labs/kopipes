@@ -9,8 +9,12 @@ This framework leverages **Kotlin Coroutines and Flow** to provide a type-safe, 
 *   **Type-Safe Pipelines**: Catch errors at compile time, not runtime.
 *   **Non-Blocking I/O**: Efficiently handle AWS service calls (DynamoDB, S3, EventBridge) using coroutines.
 *   **Built-in Reliability**: Idempotency, retries, and fault-handling are first-class citizens.
-*   **Composable**: Small, focused pipeline "flavors" (CDC, Correlate, Materialize) that you can chain together.
+*   **Composable**: Small, focused pipeline "flavors" (Collect, Correlate, Evaluate, Materialize, CDC...) that you
+    combine in one function or across functions.
 *   **Observability**: Automatic EMF metrics and detailed "Unit of Work" snapshots for debugging.
+
+New to the framework? Read [How kopipes works](Concepts.md) first: one diagram and a glossary. To add it to your
+build, see [Installation](../README.md#installation).
 
 ## Quick Start
 
@@ -121,10 +125,9 @@ Zero-boilerplate integration with AWS event sources:
 *   `KinesisAdapter`, `SqsAdapter`, `SnsAdapter`, `S3Adapter`, `DynamodbAdapter`.
 
 ### Pipeline Flavors
-*   **CDC**: React to DynamoDB table changes.
-*   **Correlate**: Group events by partition key for consistent processing.
-*   **Evaluate**: Apply business logic and emit new events.
-*   **Materialize**: Sink events to S3, DynamoDB, or EventBridge.
+Each flavor does one job; you supply the rules. Collect, Correlate and Evaluate make a control service; Materialize
+and CDC a BFF; Translate and Action the gateways. [Pipelines](Pipelines.md) has the whole catalogue, with a sample
+of each.
 
 ## Testing
 Test your logic without mocks or complex infrastructure: give the container a context with an in-memory publisher,
@@ -165,7 +168,11 @@ private fun kinesisEventOf(vararg events: OrderPlacedEvent) = KinesisEvent().app
 
 ## Documentation for Developers
 
+* [How kopipes works](Concepts.md): the flow of a batch, the building blocks, a glossary
+* [Pipelines](Pipelines.md): every flavor, with samples
 * [Wiring a kopipes Lambda](Wiring.md)
+* [Deadlines](Deadlines.md)
+* [Fault Re-submission](FaultResubmission.md) and [Replaying Events](ReplayEvents.md)
 * [Framework Features](Features.md)
 * [Understanding Events and Event Types](Events.md)
 * [Envelope Encryption](Encryption.md)
@@ -174,7 +181,10 @@ private fun kinesisEventOf(vararg events: OrderPlacedEvent) = KinesisEvent().app
 
 ## Examples
 
-Check out the [Serialized Unit Tracking (SUT)](../examples/sut) example for a complete Kotlin-based application.
+* [Payments](../examples/payments/README.md): the most complete example. A whole subsystem (control service, BFF,
+  four gateways, hub, lake, fault monitor) with deadlines, a circuit breaker and a rate limiter, runnable on
+  LocalStack.
+* [Serialized Unit Tracking (SUT)](../examples/sut): a smaller Kotlin system, plus a regional health check.
 
 ---
 
