@@ -146,7 +146,7 @@ fun `should collect the order`() {
 
 ## Examples
 
-Check out the [Shipment Unit Tracking (SUT)](../examples/sut) example for a complete Kotlin-based application.
+Check out the [Serialized Unit Tracking (SUT)](../examples/sut) example for a complete Kotlin-based application.
 
 ---
 

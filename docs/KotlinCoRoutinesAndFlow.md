@@ -1,4 +1,4 @@
-### Coroutines and Flow for Serverless Pipelines
+# Coroutines and Flow for Serverless Pipelines
 
 Kotlin's coroutines and Flow framework provide significant advantages when building serverless event-driven pipelines:
 

@@ -1,4 +1,3 @@
-
 # Events Microstore
 
 ## Table of Contents
@@ -38,13 +37,13 @@ Implementing an Events Microstore provides several operational and architectural
 - **Improved Observability**: Having a queryable record of how events were collected and correlated makes it easier to debug complex workflows and investigate state transitions.
 - **Cost-Effective Scalability**: By using Time to Live (TTL) for records, the microstore provides a sliding window of operationally relevant data without the overhead of permanent storage.
 
-# How does it work?
+## How does it work?
 
 The following sections describe how an event is processed through the microstore, starting with an incoming event from a Kinesis stream, SQS queue, or other event source.
 ```json
 {
     "id": "ev-001",
-    "timestamp": 1775658343,
+    "timestamp": 1775658343000,
     "partitionKey": "thing-005",
     "tags": { 
         "awsregion": "us-east-1"
@@ -65,13 +64,13 @@ When an event is collected, it is stored in the Events Microstore (implemented u
 | pk             | ev-001        | The partition key, which stores the unique event ID.                            |
 | sk             | EVENT         | The sort key, set to the constant "EVENT" to identify the record type.          |
 | discriminator  | EVENT         | Used to distinguish between different types of stored records.                  |
-| timestamp      | 1775658343    | The time the event was originally collected.                                    |
+| timestamp      | 1775658343000 | The event's timestamp, in epoch milliseconds.                                  |
 | awsregion      | us-east-1     | The AWS region where the event was collected.                                   |
 | sequenceNumber | ...0121231223 | A monotonically increasing number, typically from the Kinesis record.           |
-| ttl            | 1775690000    | The Time to Live (TTL) for the event record.                                    |
-| expire         | TRUE          | A boolean flag indicating whether the record is eligible for expiration.        |
-| suffix         | null          | Not used for standard event records.                                            |
-| data           | thing-005     | A reference to the entity associated with the event.                            |
+| ttl            | 1778509543    | When DynamoDB may delete the item, in epoch seconds (default: timestamp + 33 days). |
+| expire         | false         | `true` turns the TTL deletion into an *expired* event a rule can react to (see [Deadlines](Deadlines.md)). |
+| suffix         | ""            | Not used for standard event records.                                            |
+| data           | thing-005     | The correlation key (the entity the event is about).                            |
 | pipelineId     | col1          | The ID of the pipeline that performed the collection.                           |
 | event          | {...}         | The raw event payload.                                                          |
 
@@ -84,12 +83,12 @@ After an event is collected, a DynamoDB Stream (using the outbox pattern) trigge
 | pk             | thing-005     | The partition key, storing the correlation key (e.g., the entity ID).                               |
 | sk             | ev-001        | The sort key, storing the ID of the event that was correlated.                                      |
 | discriminator  | CORREL        | Set to "CORREL" to indicate this is a correlation record.                                           |
-| timestamp      | 1775658343    | The time the original event was collected.                                                          |
+| timestamp      | 1775658343000 | The original event's timestamp, in epoch milliseconds.                                              |
 | awsregion      | us-east-1     | The AWS region where the event was collected.                                                       |
 | sequenceNumber | ...0121231223 | The sequence number inherited from the original record.                                             |
-| ttl            | 1775690000    | The Time to Live (TTL) for the correlation record.                                                  |
-| expire         | TRUE          | A boolean flag indicating whether the record should expire.                                         |
-| suffix         | ""            | Used when events are correlated to additional entities or contexts.                                 |
+| ttl            | 1778509543    | When DynamoDB may delete the item, in epoch seconds.                                                |
+| expire         | false         | `true` for deadline items, whose deletion triggers an expiry rule.                                  |
+| suffix         | ""            | Set for side partitions such as deadlines (`pk = thing-005.<suffix>`).                              |
 | data           | null          | Typically null for correlation records.                                                             |
 | pipelineId     | corr1         | The ID of the correlation pipeline that created this record.                                        |
 | event          | {...}         | The raw event payload (copied from the original event).                                             |
