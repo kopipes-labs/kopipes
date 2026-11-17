@@ -49,7 +49,7 @@ class FirehoseAdapterTest {
     }
 
     @Test
-    fun `fromFirehose should decode records and preserve record id`() = runBlocking {
+    fun `fromFirehose should decode records and preserve record id`(): Unit = runBlocking {
         val adapter = adapter()
         val payload = """{"type":"MY_EVENT_A","foo":"bar"}"""
         val record = createFirehoseRecord(recordId = "rec-1", payload = payload)
@@ -68,7 +68,7 @@ class FirehoseAdapterTest {
     }
 
     @Test
-    fun `fromFirehose should handle decode failures`() = runBlocking {
+    fun `fromFirehose should handle decode failures`(): Unit = runBlocking {
         val faultManager = faultManager()
         val adapter = adapter(faultManager = faultManager)
         val record = createFirehoseRecord(recordId = "rec-fail", payload = "invalid")
