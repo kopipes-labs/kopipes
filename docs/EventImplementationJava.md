@@ -22,7 +22,7 @@ In the `aws-lambda-stream-kotlin` library, events must follow specific technical
 Events must be immutable. In Java 17+, the recommended way to achieve this is by using **Records**. Records are immutable by default and provide a concise syntax for data-holding classes.
 
 ### 2. The `Event` Interface
-All events must implement the `io.kopipes.aws.Event` interface.
+All events must implement the `io.kopipes.core.Event` interface.
 
 ### 3. Core Properties
 The `Event` interface requires the following metadata properties (accessible via standard getters in Java):

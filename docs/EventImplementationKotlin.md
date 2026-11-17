@@ -22,7 +22,7 @@ In the `aws-lambda-stream-kotlin` library, events must follow specific technical
 Events must be immutable. All properties should be declared using `val`. This ensures that events cannot be mutated accidentally during pipeline processing, leading to safer and more predictable side effects.
 
 ### 2. The `Event` Interface
-All events must implement the `io.kopipes.aws.Event` interface.
+All events must implement the `io.kopipes.core.Event` interface.
 
 ### 3. Core Properties
 The `Event` interface requires the following metadata properties:

@@ -13,7 +13,8 @@ While written in Kotlin, AWS Lambda Stream for the JVM is designed to be Java-fr
 
 ### 1. Define your Event
 
-Use Java Records for a concise and immutable event definition. Use Jackson annotations for serialization.
+Use Java Records for a concise and immutable event definition, and Jackson (or any JSON library) for
+serialization. A record's accessors are `id()`, `timestamp()`..., so it also implements the `Event` getters.
 
 ```java
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
@@ -28,6 +29,14 @@ public record OrderPlacedEvent(
     String orderId
 ) implements Event {
     @Override public String eventType() { return "ORDER_PLACED"; }
+
+    @Override public String getId() { return id; }
+    @Override public Long getTimestamp() { return timestamp; }
+    @Override public String getPartitionKey() { return partitionKey; }
+    @Override public Map<String, String> getTags() { return tags; }
+    @Override public RawRecord getRaw() { return raw; }
+    @Override public EnvelopeEncryptionMetadata getEem() { return eem; }
+    @Override public List<EventReference> getTriggers() { return triggers; }
 
     @Override
     public Event copyEvent(String id, Long timestamp, String partitionKey, 
@@ -63,9 +72,18 @@ public class OrderProcessingContainer {
         this.dynamoDbAdapter = new DynamodbAdapter(context);
     }
 
-    private Event toEvent(UnitOfWork uow) {
-        // Map DynamoDB RecordPair to your Event
-        return new OrderPlacedEvent(...);
+    /** Maps a row change of the orders table to an event; null publishes nothing. */
+    Event toEvent(UnitOfWork uow) {
+        if (!(uow.getEvent().getRaw() instanceof RecordPair change) || change.getOld() != null || change.getNew() == null) {
+            return null;                                 // only new rows are placed orders
+        }
+        return orderPlacedOf(change.getNew());
+    }
+
+    static OrderPlacedEvent orderPlacedOf(RecordImage row) {
+        String orderId = row.getS("pk");
+        return new OrderPlacedEvent(UUID.randomUUID().toString(), System.currentTimeMillis(), orderId,
+                Map.of(), null, null, List.of(), orderId);
     }
 }
 ```
@@ -109,15 +127,27 @@ Pipeline "flavors" like `CdcPipeline` or `EvaluatePipeline` provide `toEventJava
 ## Testing
 You can test your pipeline logic using standard JUnit 5.
 
+Keep the business mapping in plain methods and test them directly, with JUnit 5 and no AWS:
+
 ```java
 @Test
-void shouldProcessOrder() {
-    OrderPlacedEvent event = new OrderPlacedEvent(..., "order-123");
-    UnitOfWork uow = new UnitOfWork(null, null, event);
-    
-    // Test logic here
+void mapsANewOrderRowToOrderPlaced() {
+    // Arrange
+    RecordImage row = new RecordImage(Map.of("pk", new AttributeValue().withS("order-123")));
+
+    // Act
+    OrderPlacedEvent event = OrderProcessingContainer.orderPlacedOf(row);
+
+    // Assert
+    assertEquals("order-123", event.orderId());
+    assertEquals("order-123", event.getPartitionKey());
 }
 ```
+
+`RecordImage` wraps a DynamoDB stream image; `AttributeValue` is
+`com.amazonaws.services.lambda.runtime.events.models.dynamodb.AttributeValue`. To run a whole batch through the
+pipelines, build the container with an `EventPublisherInMemory` in its context and call the handler with a
+`DynamodbEvent`; the [URL Shortener](../examples/urlshortener) and the Kotlin guide show the pattern.
 
 ## Documentation for Developers
 

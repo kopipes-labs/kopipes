@@ -38,7 +38,16 @@ data class OrderPlacedEvent(
         eem: EnvelopeEncryptionMetadata?, triggers: List<EventReference>?
     ) = copy(id = id, timestamp = timestamp, partitionKey = partitionKey, tags = tags, raw = raw, eem = eem, triggers = triggers)
 }
+
+/** Turns stream records into events and back. */
+object OrderEventCodec : EventCodec by KotlinxEventCodec(OrderPlacedEvent.serializer())
 ```
+
+The envelope fields look like ceremony, but each one earns its place: `id` and `timestamp` make processing idempotent
+and ordered, `tags` carry the standard metadata (account, stage, function) into every fault, `raw` keeps the original
+record for fault resubmission, `eem` holds envelope-encryption keys, and `triggers` links an emitted event to the
+events that caused it. `copyEvent` lets the framework set them without knowing your class. When you have several
+events, put them under a sealed class with one codec (see [Implementing Events](EventImplementationKotlin.md)).
 
 ### 2. Configure your Pipeline
 
@@ -124,14 +133,33 @@ and in-memory fakes for its ports.
 ```kotlin
 @Test
 fun `should collect the order`() {
+    // Arrange
     val publisher = EventPublisherInMemory()
     val context = AwsKopipesContext(eventPublisher = publisher)
     val microstore = EventsMicrostoreInMemory()
     val handler = OrderHandler { OrderContainer(context, microstore) }
+    val event = OrderPlacedEvent(id = "e-1", timestamp = 1_730_900_520_000, orderId = "123")
 
-    handler.handleRequest(kinesisEventOf(OrderPlacedEvent(id = "e-1", orderId = "123")), TestContext())
+    // Act
+    handler.handleRequest(kinesisEventOf(event), TestContext())   // io.kopipes.aws.testsupport.TestContext
 
+    // Assert
     microstore.getStored().keys shouldBe setOf("e-1")
+    publisher.faults() shouldBe emptyList()
+}
+
+/** A Kinesis batch holding the given events, as the stream would deliver it. */
+private fun kinesisEventOf(vararg events: OrderPlacedEvent) = KinesisEvent().apply {
+    records = events.mapIndexed { i, event ->
+        KinesisEvent.KinesisEventRecord().apply {
+            eventID = "shard-0:$i"
+            kinesis = KinesisEvent.Record().apply {
+                data = ByteBuffer.wrap(OrderEventCodec.encode(event).toByteArray())
+                partitionKey = event.orderId
+                sequenceNumber = "$i"
+            }
+        }
+    }
 }
 ```
 
