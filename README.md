@@ -147,7 +147,7 @@ files they must merge.
 | [cdk](cdk/README.md) | CDK constructs for the event hub, event lake, fault monitor, tables and functions |
 | [tools](tools) | `resubmit-events` and `replay-events` |
 | [examples](examples) | Example systems in Kotlin and Java |
-| [docs](docs) | The documentation |
+| [docs](docs/README.md) | The documentation, indexed by role and topic |
 
 ## Background
 

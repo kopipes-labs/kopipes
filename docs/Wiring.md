@@ -150,8 +150,7 @@ or use Spring, which also reads them as `kopipes.*` properties.
 Add the [`spring`](../spring/README.md) module and the context becomes an auto-configured bean, read from
 `application.yml` as well as from the env vars above. Spring Framework apps without Boot `@Import(KopipesConfiguration::class)` for the
 same context bean. `SpringKinesisHandler` and its siblings run a Spring application
-as a Lambda. The [payments control service](../examples/payments/payments-control-service/spring-app) is built both
-ways from the same code.
+as a Lambda. The containers stay the same: Spring only provides the context.
 
 ## Pitfalls
 

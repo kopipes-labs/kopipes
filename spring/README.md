@@ -119,10 +119,6 @@ tasks.shadowJar {
 }
 ```
 
-`examples/payments/payments-control-service/spring-app` is a complete example: the plain control service's domain
-and containers with Spring as the composition root. Deploy it with
-`CDK_CONTEXT="spring=true" ./deploy_stacks.sh -d` in `examples/payments`.
-
 ## Configuration
 
 Each setting is read as a `kopipes.*` property first, then under its existing env var name, so deployed Lambdas need no change:
