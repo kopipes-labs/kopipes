@@ -38,6 +38,7 @@ Errors you mark as retryable (throttling, "the answer came before the request") 
 | Sink, connector | Writes to an AWS service in batches, with retries | `aws` |
 | `EventPublisher` | Publishes events to the bus (`EventBridgePublisher`; `EventPublisherInMemory` in tests) | `core`, `aws` |
 | `EventsMicrostore` | A service's own events table in DynamoDB: what it heard, by correlation key | `core`, `aws` |
+| `EntityStore` | The entities an `UpdatePipeline` queries and updates (`DynamoDbEntityStore`; `EntityStoreInMemory` in tests) | `core`, `aws` |
 | `FaultManager` | Turns errors into fault events, or rethrows the retryable ones | `core` |
 | `AwsKopipesContext` | Everything the pipelines share: config, AWS clients, publisher, fault manager. See [Wiring](Wiring.md) | `aws` |
 | Container | Your class that builds the pipelines from a context, once per Lambda container | your code |

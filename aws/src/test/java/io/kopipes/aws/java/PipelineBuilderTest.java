@@ -2,10 +2,11 @@ package io.kopipes.aws.java;
 
 import io.kopipes.aws.AwsKopipesContext;
 import io.kopipes.aws.flavors.CdcPipeline;
-import io.kopipes.aws.flavors.UpdatePipeline;
-import io.kopipes.core.EventCodec;
 import io.kopipes.core.UnitOfWork;
+import io.kopipes.aws.sinks.DynamoDbEntityStore;
 import io.kopipes.core.flavors.CollectPipeline;
+import io.kopipes.core.flavors.UpdatePipeline;
+import io.kopipes.core.sinks.EntityStore;
 import io.kopipes.core.sinks.EventPublisher;
 import io.kopipes.core.sinks.EventsMicrostore;
 import kotlinx.coroutines.flow.Flow;
@@ -38,14 +39,11 @@ public class PipelineBuilderTest {
     public void testUpdatePipelineBuilder() {
         UpdatePipeline pipeline = UpdatePipeline.builder()
                 .id("test-update")
-                .context(new AwsKopipesContext())
-                .eventCodec(new EventCodec() {
-                    @Override
-                    public io.kopipes.core.Event decode(String event) { return null; }
-                    @Override
-                    public String encode(io.kopipes.core.Event event) { return null; }
-                })
-                .toUpdateRequest(uow -> null)
+                .entityStore(new DynamoDbEntityStore(new AwsKopipesContext()))
+                .toQueryJava(uow -> new EntityStore.Query("p1"))
+                .toUpdate(uow -> new EntityStore.Update(
+                        new EntityStore.Key("p1", "s1"),
+                        java.util.Map.of("status", "DONE")))
                 .build();
 
         assertEquals("test-update", pipeline.getId());

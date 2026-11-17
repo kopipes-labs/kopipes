@@ -16,7 +16,7 @@ wants with `eventFilter(...)` (by class, type name, regex or content; see `Event
 | [`EvaluatePipeline`](#evaluate) | `core` | The microstore's stream | Queries everything heard for the key, runs your rule, emits higher-order events | Events on the bus | A control service's trigger |
 | [`MaterializePipeline`](#materialize) | `aws` | Events from a channel | Turns each event into a DynamoDB update | A read-model item | A BFF's listener |
 | [`MaterializeS3Pipeline`](#materialize) | `aws` | Events from a channel | Turns each event into an S3 put or delete | An S3 object | A read model in S3 |
-| [`UpdatePipeline`](#update) | `aws` | Events | Queries the items an event affects, then updates each one | DynamoDB updates | Fanning one event out to many items |
+| [`UpdatePipeline`](#update) | `core` | Events | Queries the entities an event affects, then updates each one | Entity updates (DynamoDB, in memory) | Fanning one event out to many items |
 | [`CdcPipeline`](#cdc) | `aws` | A table's stream | Turns a row change into an event, optionally encrypting it | Events on the bus | A BFF's trigger (outbox) |
 | [`TranslatePipeline`](#translate) | `core` | An outside system's record | Turns it into internal events | Events on the bus | An ingress gateway |
 | [`ActionPipeline`](#action) | `core` | Events from a channel | Calls an outside system | Nothing, or events for outright refusals | An egress gateway |
@@ -98,8 +98,31 @@ MaterializePipeline.builder()
 
 ## Update
 
-For an event that affects many items: `toQueryRequest` finds them, `toGetRequest` loads them, and `toUpdateRequest`
-builds each update.
+For an event that affects many entities: `toQuery` finds them, `toGet` loads related ones, and `toUpdate` builds
+the update for each. An `EntityStore` does the reading and writing, so the pipeline doesn't depend on the database:
+`DynamoDbEntityStore` (`aws`, the `ENTITY_TABLE_NAME` table) in production, `EntityStoreInMemory` (`core`) in tests.
+
+```kotlin
+UpdatePipeline.builder()
+    .id("touch-orders")
+    .entityStore(DynamoDbEntityStore(context))
+    .toQuery { uow -> EntityStore.Query(uow.event!!.partitionKey!!, attribute = "data", index = "DataIndex") }
+    .toUpdate { uow ->                           // runs once per entity found, in uow.entity; null skips it
+        val order = uow.entity!!
+        val renamed = uow.event as CustomerRenamed
+        EntityStore.Update(
+            key = EntityStore.Key(order["pk"] as String, order["sk"] as String),
+            set = mapOf("customerName" to renamed.name, "timestamp" to renamed.timestamp),
+            onlyIfNewer = "timestamp",           // a late or replayed event can't overwrite newer state
+        )
+    }
+    .build()
+```
+
+An update can `set`, `add` (counters) and `remove` attributes, and creates the entity if it's missing. Without
+`toQuery`, or when the query finds nothing, `toUpdate` runs once with no `entity`. Collected events (items of an
+events table) are unwrapped into the event they carry first; pass `isCollectedEvent(DynamodbAdapter::forCollectedEvents)`
+and `normalizer(DynamodbAdapter.normalize(codec))` to match DynamoDB stream records exactly.
 
 ## CDC
 

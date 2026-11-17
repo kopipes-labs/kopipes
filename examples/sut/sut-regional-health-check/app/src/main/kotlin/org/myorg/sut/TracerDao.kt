@@ -1,15 +1,14 @@
 package org.myorg.sut
 
 import aws.sdk.kotlin.services.dynamodb.model.AttributeValue
-import aws.sdk.kotlin.services.dynamodb.model.UpdateItemRequest
 import aws.sdk.kotlin.services.dynamodb.model.UpdateItemResponse
 import aws.sdk.kotlin.services.s3.model.PutObjectRequest
 import aws.smithy.kotlin.runtime.content.ByteStream
 import io.kopipes.aws.from.RecordPair
 import io.kopipes.aws.sinks.DynamoDbUpdateValue
-import io.kopipes.aws.sinks.timestampCondition
 import io.kopipes.aws.sinks.updateExpression
 import io.kopipes.core.*
+import io.kopipes.core.sinks.EntityStore
 import io.kopipes.core.utils.ttl
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
@@ -181,49 +180,33 @@ data class HealthCheckResponse(
 
 private val logger = KotlinLogging.logger {  }
 
-fun toUpdateRequest(uow: UnitOfWork): UpdateItemRequest? {
+/** Marks the tracer's item completed, unless a newer timestamp is already there. */
+fun toUpdate(uow: UnitOfWork): EntityStore.Update? {
 
     val timestamp = Clock.System.now().toEpochMilliseconds()
 
     val event = uow.event as? TracerEvent
     if (event == null) {
-        logger.error { "Cannot build DynamoDb update request: event is not a TracerEvent. event=${uow.event}, classType=${uow.event?.let { it::class.qualifiedName }}" }
+        logger.error { "Cannot build the tracer update: event is not a TracerEvent. event=${uow.event}, classType=${uow.event?.let { it::class.qualifiedName }}" }
         return null
     }
 
-    val pk = event.tracer.awsRegion
-    val sk = event.tracer.roundedTimestamp.toString()
     val startTimestamp = event.tracer.timestamp
     val latency = (timestamp - startTimestamp).milliseconds.inWholeSeconds
-    val ttl = ttl(timestamp, 92.days)
 
-    val expression = updateExpression(
-        mapOf(
-            "status" to DynamoDbUpdateValue.DbSet(AttributeValue.S(COMPLETED)),
-            "discriminator" to DynamoDbUpdateValue.DbSet(AttributeValue.S(DISCRIMINATOR)),
-            "timestamp" to DynamoDbUpdateValue.DbSet(AttributeValue.N(timestamp.toString())),
-            "latency" to DynamoDbUpdateValue.DbSet(
-                AttributeValue.N(latency.toString()),
-            ),
-            "latched" to DynamoDbUpdateValue.DbSet(AttributeValue.Bool(true)),
-            "ttl" to DynamoDbUpdateValue.DbSet(AttributeValue.N(ttl.toString())),
-            "awsregion" to DynamoDbUpdateValue.DbSet(AttributeValue.S(System.getenv("AWS_REGION"))),
+    return EntityStore.Update(
+        key = EntityStore.Key(pk = event.tracer.awsRegion, sk = event.tracer.roundedTimestamp.toString()),
+        set = mapOf(
+            "status" to COMPLETED,
+            "discriminator" to DISCRIMINATOR,
+            "timestamp" to timestamp,
+            "latency" to latency,
+            "latched" to true,
+            "ttl" to ttl(timestamp, 92.days),
+            "awsregion" to System.getenv("AWS_REGION"),
         ),
+        onlyIfNewer = "timestamp",
     )
-
-    val condition = timestampCondition()
-
-    return UpdateItemRequest {
-        key = mapOf(
-            "pk" to AttributeValue.S(pk),
-            "sk" to AttributeValue.S(sk),
-        )
-        tableName = System.getenv("ENTITY_TABLE_NAME")
-        expressionAttributeNames = expression.expressionAttributeNames
-        expressionAttributeValues = expression.expressionAttributeValues
-        updateExpression = expression.updateExpression
-        conditionExpression = condition["ConditionExpression"]
-    }
 }
 
 

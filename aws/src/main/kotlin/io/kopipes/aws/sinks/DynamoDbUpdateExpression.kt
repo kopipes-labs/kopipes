@@ -78,7 +78,7 @@ fun updateExpression(item: Map<String, DynamoDbUpdateValue>): DynamoDbUpdateExpr
     )
 }
 
-private fun makeAliasForKey(baseKey: String): String =
+internal fun makeAliasForKey(baseKey: String): String =
     baseKey.replace(Regex("[^a-zA-Z0-9_]")) { match ->
         "_x${match.value.first().code.toString(16)}_"
     }

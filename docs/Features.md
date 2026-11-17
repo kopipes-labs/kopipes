@@ -11,7 +11,7 @@ Ready-made pipeline flavors you configure with a builder. See [Pipelines](Pipeli
 - **Deadlines without schedulers:** a correlated item with a TTL fires an expiry rule when DynamoDB deletes it. See
   [Deadlines](Deadlines.md).
 - **Read models:** `MaterializePipeline` (DynamoDB), `MaterializeS3Pipeline` (S3) and `UpdatePipeline` (one event,
-  many items).
+  many entities, through an `EntityStore`: DynamoDB or in memory).
 - **Outbox:** `CdcPipeline` publishes events from a table's own changes.
 - **Gateways:** `TranslatePipeline` turns an outside system's records into internal events; `ActionPipeline` calls
   an outside system for each event.
@@ -71,8 +71,8 @@ Ready-made pipeline flavors you configure with a builder. See [Pipelines](Pipeli
   See the [Java guide](JavaDevelopers.md).
 - **No global state:** components take their collaborators in constructors, from an `AwsKopipesContext`, so the
   same code runs on Lambda, in Spring, or in a test with in-memory fakes. See [Wiring](Wiring.md).
-- **In-memory test doubles:** `EventPublisherInMemory`, `EventsMicrostoreInMemory`, `EventsTableSimulator` and
-  `TestContext`.
+- **In-memory test doubles:** `EventPublisherInMemory`, `EventsMicrostoreInMemory`, `EntityStoreInMemory`,
+  `EventsTableSimulator` and `TestContext`.
 - **Pluggable serialization:** your events use any library behind an `EventCodec` (kotlinx.serialization in the
   Kotlin examples, Jackson in the Java one); the framework's own types use kotlinx.serialization.
 - **Optional Spring Boot support:** the context as an auto-configured bean, and handlers that run a Spring

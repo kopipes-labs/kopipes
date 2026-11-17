@@ -37,22 +37,22 @@ val dynamodbAdapter = DynamodbAdapter(context)
 val microstore = DynamoDbEventsMicrostore(context)                 // table, region, parallelism, step metrics
 val sink = DynamoDbSink(context)
 val publisher = EventBridgePublisher(context.envConfig, context.eventBridgeClientFactory)
+val entityStore = DynamoDbEntityStore(context)                     // entity table, parallelism, step metrics
 
 val assembler = PipelineAssembler.builder()
     .context(context)                                              // fault manager, pipeline metrics
     .addPipeline(
         UpdatePipeline.builder()
             .id("update")
-            .context(context)                                      // DynamoDB client, parallelism, step metrics
-            .eventCodec(MyEventCodec)
-            .toUpdateRequest(::toUpdateRequest)
+            .entityStore(entityStore)
+            .toUpdate(::toUpdate)
             .build()
     )
     .build()
 ```
 
 Builders fail at `build()` when a required collaborator is missing (for example
-`dynamoDbConnectorOptions (or context) is required`), so a wiring mistake shows up when the Lambda starts, not halfway
+`entityStore is required`), so a wiring mistake shows up when the Lambda starts, not halfway
 through a batch.
 
 ## A plain Lambda
