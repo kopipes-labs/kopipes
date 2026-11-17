@@ -53,6 +53,7 @@ open class KopipesStack(scope: Construct, val serviceProps: ServiceProps) :
             ?: EventBus.fromEventBusName(this, IMPORTED_BUS_ID, hub.busName)
 
     /** One of the hub's Kinesis channels. Imported once per stack. */
+    @JvmOverloads
     fun importChannel(channel: String = Channels.DEFAULT): IStream {
         val id = "ImportedChannel-$channel"
         return node.tryFindChild(id) as? IStream

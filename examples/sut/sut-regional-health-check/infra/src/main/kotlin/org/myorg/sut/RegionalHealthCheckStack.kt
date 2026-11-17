@@ -1,14 +1,16 @@
 package org.myorg.sut
 
+import io.kopipes.cdk.KopipesFunction
+import io.kopipes.cdk.KopipesFunctionProps
+import io.kopipes.cdk.KopipesStack
+import io.kopipes.cdk.ServiceProps
 import software.amazon.awscdk.CfnCondition
-import software.amazon.awscdk.Duration
 import software.amazon.awscdk.Fn
 import software.amazon.awscdk.services.apigateway.CfnApiKey
 import software.amazon.awscdk.services.events.EventBus
 import software.amazon.awscdk.services.kinesis.Stream
 import software.amazon.awscdk.services.lambda.Code
 import software.amazon.awscdk.services.lambda.Function
-import software.amazon.awscdk.services.lambda.Runtime
 import software.amazon.awscdk.services.s3.Bucket
 import software.amazon.awscdk.services.sns.Topic
 import software.amazon.awscdk.services.sqs.Queue
@@ -32,7 +34,12 @@ Check Health API
 
 */
 
-class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : BaseStack(scope, serviceProps) {
+/**
+ * A regional canary rather than a domain service: it has its own bus and stream, so a tracer crosses every kind of
+ * resource in this region without depending on the subsystem's hub. It takes the shared base stack and functions from
+ * the `cdk` module, and wires the rest itself (stream filters, SNS from S3, Synthetics).
+ */
+class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : KopipesStack(scope, serviceProps) {
 
     internal val topic: Topic = newTopic()
     internal val triggerQueue: Queue = newTriggerQueue()
@@ -41,27 +48,24 @@ class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : B
     internal val bus: EventBus = newBus()
     internal val stream1: Stream = newStream1()
 
-    val JarFile = Code.fromAsset("../app/build/libs/sut-regional-health-check.jar")
-    val runtime: Runtime = Runtime.JAVA_21!!
-    val runtimeEnvironment = mapOf(
-        "JAVA_TOOL_OPTIONS" to "-Dslf4j.provider=io.github.vitalijr2.aws.lambda.slf4j.AWSLambdaServiceProvider",
-        "LOG_DEFAULT_LEVEL" to "DEBUG",
+    private val jar = Code.fromAsset("../app/build/libs/sut-regional-health-check.jar")
+
+    /** Its own bus, not the hub's: so the functions don't publish through [KopipesFunctionProps.publishes]. */
+    private val runtimeEnvironment = mapOf(
         "ENTITY_TABLE_NAME" to entitiesTable.tableName,
         "BUS_NAME" to bus.eventBusName,
         "BUS_SRC" to "regional-health-check-trigger",
-        "REGION" to regionName(),
-//        "ACCOUNT_ID" to Aws.ACCOUNT_ID,
+        "REGION" to regionName,
         "BUCKET_NAME" to bucket.bucketName,
-        "SERIALIZATION_STRATEGY" to "KOTLINX"
     )
 
     init {
         // Check Health API  -> Dynamo DB Table
-        val restApiLambda = newCheckHealthApi()
+        val restApiLambda = newFunction("checkHealthApi", "org.myorg.sut.CheckHealthApi::handleRequest")
         grantAccessToTable(restApiLambda, entitiesTable)
 
         // Dynamo DB Table -> Dynamo DB Stream -> Dynamo DB Trigger Lambda -> S3 bucket
-        val dynamoDbTriggerLambda = newDynamoDbTriggerLambda()
+        val dynamoDbTriggerLambda = newFunction("dynamoDbTrigger", "org.myorg.sut.DynamoDbTrigger::handleRequest")
         consumeFromTable(dynamoDbTriggerLambda, entitiesTable)
         grantAccessToBucket(dynamoDbTriggerLambda, bucket)
 
@@ -75,7 +79,7 @@ class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : B
         )
 
         // SQS Trigger Queue -> S3Trigger Lambda -> Event Bus
-        val s3TriggerLambda = newS3TriggerLambda()
+        val s3TriggerLambda = newFunction("s3trigger", "org.myorg.sut.S3Trigger::handleRequest")
         consumeFromQueue(s3TriggerLambda, triggerQueue)
         grantAccessToBus(s3TriggerLambda, bus)
 
@@ -86,7 +90,7 @@ class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : B
         logToCloudWatch(bus)
 
         // Kinesis Stream 1 -> Kinesis Trigger Lambda -> Dynamo DB Table
-        val kinesisTriggerLambda = newKinesisTriggerLambda()
+        val kinesisTriggerLambda = newFunction("kinesisTrigger", "org.myorg.sut.KinesisTrigger::handleRequest")
         consumeFromKinesis(kinesisTriggerLambda, stream1)
 
         addApiGatewayApiKeys()
@@ -101,59 +105,19 @@ class RegionalHealthCheckStack(scope: Construct, serviceProps: ServiceProps) : B
 
     }
 
-    private fun newCheckHealthApi(): Function =
-        Function.Builder.create(this, "checkHealthApi")
-            .functionName("${subsys()}-regional-health-check-${stage()}-checkHealthApi")
-            .code(JarFile)
-            .handler("org.myorg.sut.CheckHealthApi::handleRequest")
-            .timeout(Duration.seconds(50))
-            .memorySize(1024)
-            .runtime(runtime)
-            .environment(runtimeEnvironment)
-            .build()
-
-    private fun newDynamoDbTriggerLambda(): Function =
-        Function.Builder.create(this, "dynamoDbTrigger")
-            .functionName("${subsys()}-regional-health-check-${stage()}-dynamoDbTrigger")
-            .code(JarFile)
-            .handler("org.myorg.sut.DynamoDbTrigger::handleRequest")
-            .timeout(Duration.seconds(50))
-            .memorySize(1024)
-            .runtime(runtime)
-            .environment(runtimeEnvironment)
-            .build()
-
-    private fun newS3TriggerLambda(): Function =
-        Function.Builder.create(this, "s3Trigger")
-            .functionName("${subsys()}-regional-health-check-${stage()}-s3trigger")
-            .code(JarFile)
-            .handler("org.myorg.sut.S3Trigger::handleRequest")
-            .timeout(Duration.seconds(50))
-            .memorySize(1024)
-            .runtime(runtime)
-            .environment(runtimeEnvironment)
-            .build()
-
-    private fun newKinesisTriggerLambda(): Function =
-        Function.Builder.create(this, "kinesisTrigger")
-            .functionName("${subsys()}-regional-health-check-${stage()}-kinesisTrigger")
-            .code(JarFile)
-            .handler("org.myorg.sut.KinesisTrigger::handleRequest")
-            .timeout(Duration.seconds(50))
-            .memorySize(1024)
-            .runtime(runtime)
-            .environment(runtimeEnvironment)
-            .build()
-
+    /** `sut-regional-health-check-<stage>-<id>`. */
+    private fun newFunction(id: String, handler: String): Function =
+        KopipesFunction(this, id, KopipesFunctionProps(jar, handler, environment = runtimeEnvironment, publishes = false))
+            .function
 
     fun RegionalHealthCheckStack.isWestCondition(): CfnCondition =
         CfnCondition.Builder.create(this, "IsWest")
-            .expression(Fn.conditionEquals(regionName(), "us-west-2"))
+            .expression(Fn.conditionEquals(regionName, "us-west-2"))
             .build()
 
     fun RegionalHealthCheckStack.isEastCondition(): CfnCondition =
         CfnCondition.Builder.create(this, "IsEast")
-            .expression(Fn.conditionEquals(regionName(), "us-east-1"))
+            .expression(Fn.conditionEquals(regionName, "us-east-1"))
             .build()
 
     fun RegionalHealthCheckStack.addApiGatewayApiKeys(): List<CfnApiKey> =

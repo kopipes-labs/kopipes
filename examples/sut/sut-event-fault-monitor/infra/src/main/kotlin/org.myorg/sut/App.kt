@@ -1,5 +1,7 @@
 package org.myorg.sut
 
+import io.kopipes.cdk.ServiceProps
+import io.kopipes.cdk.Stage
 import software.amazon.awscdk.App
 
 fun main() {

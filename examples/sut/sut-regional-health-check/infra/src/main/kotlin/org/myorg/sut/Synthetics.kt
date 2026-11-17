@@ -11,7 +11,7 @@ fun RegionalHealthCheckStack.createSyntheticsCanary(
     apiKey: String,
 ) {
     val syntheticsRole = Role.Builder.create(this, "CloudWatchSyntheticsRole")
-        .roleName("${service()}-${stage()}-${regionName()}-synthetics-role")
+        .roleName("${service}-${stage}-${regionName}-synthetics-role")
         .assumedBy(ServicePrincipal("lambda.amazonaws.com"))
         .inlinePolicies(
             mapOf(
@@ -81,7 +81,7 @@ fun RegionalHealthCheckStack.createSyntheticsCanary(
                                 )
                                 .resources(
                                     listOf(
-                                        "arn:aws:logs:${regionName()}:${Stack.of(this).account}:log-group:/aws/lambda/cwsyn-regional-health-check-*",
+                                        "arn:aws:logs:${regionName}:${Stack.of(this).account}:log-group:/aws/lambda/cwsyn-regional-health-check-*",
                                     )
                                 )
                                 .build(),
@@ -107,7 +107,7 @@ fun RegionalHealthCheckStack.createSyntheticsCanary(
                         {
                           'hostname': '$healthCheckEndpoint',
                           'method': 'GET',
-                          'path': '/${stage()}/check',
+                          'path': '/${stage}/check',
                           'port': 443,
                           'protocol': 'https:',
                           'headers': {

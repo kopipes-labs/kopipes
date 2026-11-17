@@ -1,87 +1,48 @@
 package org.myorg.urls;
 
-import software.amazon.awscdk.Aws;
-import software.amazon.awscdk.Duration;
-import software.amazon.awscdk.RemovalPolicy;
-import software.amazon.awscdk.services.dynamodb.*;
-import software.amazon.awscdk.services.kinesis.Stream;
+import io.kopipes.cdk.EnvVars;
+import io.kopipes.cdk.EventsTable;
+import io.kopipes.cdk.KopipesFunction;
+import io.kopipes.cdk.KopipesFunctionProps;
+import io.kopipes.cdk.KopipesStack;
+import io.kopipes.cdk.ServiceProps;
+import software.amazon.awscdk.services.dynamodb.ITableV2;
+import software.amazon.awscdk.services.dynamodb.TableV2;
 import software.amazon.awscdk.services.lambda.Code;
-import software.amazon.awscdk.services.lambda.Function;
-import software.amazon.awscdk.services.lambda.Runtime;
-import software.amazon.awscdk.services.lambda.StartingPosition;
-import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource;
-import software.amazon.awscdk.services.lambda.eventsources.KinesisEventSource;
 import software.constructs.Construct;
 
-import java.util.Map;
+/**
+ * Collects the url events and keeps the access counts.
+ *
+ * <pre>
+ *     default channel ─► listener ─► events table ─► (stream) ─► trigger ─► urls table (access counts)
+ * </pre>
+ */
+public class ControlServiceStack extends KopipesStack {
 
-public class ControlServiceStack extends BaseStack {
+    public final EventsTable events;
+    public final KopipesFunction listener;
+    public final KopipesFunction trigger;
 
     public ControlServiceStack(Construct scope, ServiceProps serviceProps) {
         super(scope, serviceProps);
 
-        String eventsTableName = service() + "-" + stage() + "-events";
-        String urlsTableName = subsys() + "-url-bff-" + stage() + "-table";
-        String streamName = subsys() + "-event-hub-" + stage() + "-s1";
+        Code jar = Code.fromAsset("../app/build/libs/serverless.jar");
 
-        Code jarFile = Code.fromAsset("../app/build/libs/serverless.jar");
-        Runtime runtime = Runtime.JAVA_21;
+        this.events = new EventsTable(this, "Events");
 
-        Map<String, String> environment = Map.of(
-            "EVENTS_TABLE_NAME", eventsTableName,
-            "URLS_TABLE_NAME", urlsTableName,
-            "SERIALIZATION_STRATEGY", "JACKSON"
-        );
+        this.listener = new KopipesFunction(this, "listener",
+                new KopipesFunctionProps(jar, "org.myorg.urls.ControlListenerHandler::handleRequest"))
+                .listenTo()
+                .uses(events);
 
-        TableV2 eventsTable = TableV2.Builder.create(this, "EventsTable")
-                .tableName(eventsTableName)
-                .partitionKey(Attribute.builder().name("pk").type(AttributeType.STRING).build())
-                .sortKey(Attribute.builder().name("sk").type(AttributeType.STRING).build())
-                .billing(Billing.onDemand())
-                .removalPolicy(RemovalPolicy.DESTROY)
-                .dynamoStream(StreamViewType.NEW_AND_OLD_IMAGES)
-                .build();
+        // The BFF's table, where the trigger counts accesses. Found by name: the BFF's stack owns it.
+        ITableV2 urls = TableV2.fromTableName(this, "Urls", getSubsys() + "-url-bff-" + getStage() + "-table");
 
-        Function listener = Function.Builder.create(this, "Listener")
-                .functionName(service() + "-" + stage() + "-listener")
-                .code(jarFile)
-                .handler("org.myorg.urls.ControlListenerHandler::handleRequest")
-                .timeout(Duration.seconds(30))
-                .memorySize(1024)
-                .runtime(runtime)
-                .environment(environment)
-                .build();
-
-        Function trigger = Function.Builder.create(this, "Trigger")
-                .functionName(service() + "-" + stage() + "-trigger")
-                .code(jarFile)
-                .handler("org.myorg.urls.ControlTriggerHandler::handleRequest")
-                .timeout(Duration.seconds(30))
-                .memorySize(1024)
-                .runtime(runtime)
-                .environment(environment)
-                .build();
-
-        eventsTable.grantReadWriteData(listener);
-        eventsTable.grantStreamRead(trigger);
-
-        // Grant permission to update stats in URL table
-        ITableV2 urlsTable = TableV2.fromTableName(this, "UrlsTable", urlsTableName);
-        urlsTable.grantReadWriteData(trigger);
-
-        // Consume from Kinesis
-        String streamArn = "arn:aws:kinesis:" + Aws.REGION + ":" + Aws.ACCOUNT_ID + ":stream/" + streamName;
-        Stream stream1 = (Stream) Stream.fromStreamArn(this, "Stream1", streamArn);
-
-        listener.addEventSource(KinesisEventSource.Builder.create(stream1)
-                .startingPosition(StartingPosition.LATEST)
-                .batchSize(100)
-                .build());
-
-        // Consume from Events Microstore stream
-        trigger.addEventSource(DynamoEventSource.Builder.create(eventsTable)
-                .startingPosition(StartingPosition.TRIM_HORIZON)
-                .batchSize(5)
-                .build());
+        this.trigger = new KopipesFunction(this, "trigger",
+                new KopipesFunctionProps(jar, "org.myorg.urls.ControlTriggerHandler::handleRequest"))
+                .triggeredBy(events)
+                .uses(events)
+                .uses(urls, EnvVars.ENTITY_TABLE_NAME);
     }
 }

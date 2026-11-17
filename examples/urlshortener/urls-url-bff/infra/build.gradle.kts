@@ -1,5 +1,7 @@
+// `cdk deploy <stack>` runs `CdkApp` through `gradlew run` (see cdk.json).
 plugins {
     `java-library`
+    application
 }
 
 group = "org.myorg"
@@ -10,7 +12,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":examples:urlshortener:common-infra"))
+    implementation(project(":cdk"))
     implementation(libs.aws.cdk)
 }
 
@@ -18,4 +20,8 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
+}
+
+application {
+    mainClass.set("org.myorg.urls.CdkApp")
 }

@@ -1,88 +1,57 @@
 package org.myorg.urls;
 
-import software.amazon.awscdk.Duration;
+import io.kopipes.cdk.KopipesFunction;
+import io.kopipes.cdk.KopipesFunctionProps;
+import io.kopipes.cdk.KopipesStack;
+import io.kopipes.cdk.ServiceProps;
 import software.amazon.awscdk.RemovalPolicy;
-import software.amazon.awscdk.services.dynamodb.*;
-import software.amazon.awscdk.services.iam.Effect;
-import software.amazon.awscdk.services.iam.PolicyStatement;
+import software.amazon.awscdk.services.dynamodb.Attribute;
+import software.amazon.awscdk.services.dynamodb.AttributeType;
+import software.amazon.awscdk.services.dynamodb.Billing;
+import software.amazon.awscdk.services.dynamodb.StreamViewType;
+import software.amazon.awscdk.services.dynamodb.TableV2;
 import software.amazon.awscdk.services.lambda.Code;
-import software.amazon.awscdk.services.lambda.Function;
-import software.amazon.awscdk.services.lambda.Runtime;
-import software.amazon.awscdk.services.lambda.StartingPosition;
-import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource;
 import software.constructs.Construct;
 
-import java.util.List;
-import java.util.Map;
+/**
+ * The urls' BFF: create, change and delete urls, and redirect.
+ *
+ * <pre>
+ *     caller ─► restapi ─► urls table ─► (stream) ─► trigger ─► bus
+ * </pre>
+ *
+ * The urls table is keyed by {@code pk} alone, the short url, so it isn't an {@code EventsTable}: any table with a
+ * stream works with {@code triggeredBy} and {@code uses}.
+ */
+public class UrlBffStack extends KopipesStack {
 
-public class UrlBffStack extends BaseStack {
+    /** The env var the BFF's {@code UrlBffContainer} reads its table name from. */
+    static final String TABLE_NAME = "TABLE_NAME";
 
-    private final String tableName;
-    private final String busName;
-    private final Code jarFile;
-    private final Runtime runtime = Runtime.JAVA_21;
+    public final TableV2 urls;
+    public final KopipesFunction restApi;
+    public final KopipesFunction trigger;
 
     public UrlBffStack(Construct scope, ServiceProps serviceProps) {
         super(scope, serviceProps);
 
-        this.tableName = service() + "-" + stage() + "-table";
-        this.busName = subsys() + "-event-hub-" + stage() + "-bus";
-        this.jarFile = Code.fromAsset("../app/build/libs/serverless.jar");
+        Code jar = Code.fromAsset("../app/build/libs/serverless.jar");
 
-        Map<String, String> environment = Map.of(
-            "TABLE_NAME", tableName,
-            "BUS_NAME", busName,
-            "SERIALIZATION_STRATEGY", "JACKSON"
-        );
-
-        TableV2 entityTable = TableV2.Builder.create(this, "UrlTable")
-                .tableName(tableName)
+        this.urls = TableV2.Builder.create(this, "UrlTable")
+                .tableName(name("table"))
                 .partitionKey(Attribute.builder().name("pk").type(AttributeType.STRING).build())
                 .billing(Billing.onDemand())
-                .removalPolicy(RemovalPolicy.DESTROY) // For example project
+                .removalPolicy(RemovalPolicy.DESTROY) // For an example project
                 .dynamoStream(StreamViewType.NEW_AND_OLD_IMAGES)
                 .build();
 
-        Function restApi = Function.Builder.create(this, "RestApi")
-                .functionName(service() + "-" + stage() + "-restapi")
-                .code(jarFile)
-                .handler("org.myorg.urls.UrlBffHandler::handleRequest")
-                .timeout(Duration.seconds(30))
-                .memorySize(1024)
-                .runtime(runtime)
-                .environment(environment)
-                .build();
+        this.restApi = new KopipesFunction(this, "restapi",
+                new KopipesFunctionProps(jar, "org.myorg.urls.UrlBffHandler::handleRequest"))
+                .uses(urls, TABLE_NAME);
 
-        Function trigger = Function.Builder.create(this, "Trigger")
-                .functionName(service() + "-" + stage() + "-trigger")
-                .code(jarFile)
-                .handler("org.myorg.urls.UrlTriggerHandler::handleRequest")
-                .timeout(Duration.seconds(30))
-                .memorySize(1024)
-                .runtime(runtime)
-                .environment(environment)
-                .build();
-
-        entityTable.grantReadWriteData(restApi);
-        entityTable.grantStreamRead(trigger);
-        
-        trigger.addEventSource(DynamoEventSource.Builder.create(entityTable)
-                .startingPosition(StartingPosition.TRIM_HORIZON)
-                .batchSize(5)
-                .bisectBatchOnError(true)
-                .build());
-
-        // Grant permission to publish to EventBridge
-        restApi.addToRolePolicy(PolicyStatement.Builder.create()
-                .effect(Effect.ALLOW)
-                .actions(List.of("events:PutEvents"))
-                .resources(List.of("arn:aws:events:*:*:event-bus/" + busName))
-                .build());
-
-        trigger.addToRolePolicy(PolicyStatement.Builder.create()
-                .effect(Effect.ALLOW)
-                .actions(List.of("events:PutEvents"))
-                .resources(List.of("arn:aws:events:*:*:event-bus/" + busName))
-                .build());
+        this.trigger = new KopipesFunction(this, "trigger",
+                new KopipesFunctionProps(jar, "org.myorg.urls.UrlTriggerHandler::handleRequest"))
+                .triggeredBy(urls)
+                .uses(urls, TABLE_NAME);
     }
 }

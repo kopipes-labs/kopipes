@@ -14,7 +14,7 @@ import software.amazon.awscdk.services.dynamodb.TableV2
  * @param stream adds a DynamoDB stream (new and old images), for a trigger function.
  * @param removalPolicy `RETAIN` keeps the data when the stack is deleted; `DESTROY` suits LocalStack.
  */
-data class EventsTableProps(
+data class EventsTableProps @JvmOverloads constructor(
     val suffix: String = "events",
     val stream: Boolean = true,
     val removalPolicy: RemovalPolicy = RemovalPolicy.RETAIN,
@@ -28,7 +28,7 @@ data class EventsTableProps(
  * correlations reach its rules, and how a BFF publishes only what it has recorded. An item whose TTL passes is
  * deleted by DynamoDB and arrives on the stream as a REMOVE, which is how deadlines fire.
  */
-class EventsTable(stack: KopipesStack, id: String, props: EventsTableProps = EventsTableProps()) :
+class EventsTable @JvmOverloads constructor(stack: KopipesStack, id: String, props: EventsTableProps = EventsTableProps()) :
     software.constructs.Construct(stack, id) {
 
     val table: TableV2 = TableV2.Builder.create(this, "Table")

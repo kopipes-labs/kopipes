@@ -14,7 +14,7 @@ import software.amazon.awscdk.services.sqs.QueuePolicy
 fun RegionalHealthCheckStack.newTriggerQueue(): Queue =
     Queue.Builder
         .create(this, "TriggerQueue")
-        .queueName("${service()}-${stage()}-trigger")
+        .queueName("${service}-${stage}-trigger")
         // Intentionally not setting KMS here, matching the Serverless config comment:
         // KmsMasterKeyId: alias/aws/sqs
         // https://stackoverflow.com/questions/63808647/aws-forward-event-bridge-event-to-encrypted-sqs-amazon-managed-key

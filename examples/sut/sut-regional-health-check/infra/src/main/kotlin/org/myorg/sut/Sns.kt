@@ -13,7 +13,7 @@ import software.amazon.awscdk.services.sns.TopicPolicy
 
 fun RegionalHealthCheckStack.newTopic(): Topic =
     Topic.Builder.create(this, "Topic")
-        .topicName("${service()}-${stage()}")
+        .topicName("${service}-${stage}")
         // Intentionally not setting KMS here, matching the Serverless config comment:
         // KmsMasterKeyId: alias/aws/sns
         .build()
@@ -23,7 +23,7 @@ fun RegionalHealthCheckStack.publishToTopic(bucket: Bucket, topic: Topic) {
         EventType.OBJECT_CREATED_PUT,
         SnsDestination(topic),
         NotificationKeyFilter.builder()
-            .prefix(regionName())
+            .prefix(regionName)
             .build()
     )
     TopicPolicy.Builder.create(this, "TopicPolicy")

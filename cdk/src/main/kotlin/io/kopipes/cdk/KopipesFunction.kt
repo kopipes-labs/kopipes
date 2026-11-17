@@ -21,7 +21,7 @@ import software.constructs.Construct
  * @param source the bus `source` of what it publishes; the service name, or [EnvVars.EXTERNAL_SOURCE] for an egress
  *   gateway's external events.
  */
-data class KopipesFunctionProps(
+data class KopipesFunctionProps @JvmOverloads constructor(
     val code: Code,
     val handler: String,
     val environment: Map<String, String> = emptyMap(),
@@ -60,6 +60,7 @@ class KopipesFunction(private val stack: KopipesStack, id: String, props: Kopipe
      * retried [retryAttempts] times; `-1` retries until it succeeds or its records expire, holding this consumer
      * back while the others carry on. Starts from the oldest record kept, so a new consumer misses nothing.
      */
+    @JvmOverloads
     fun listenTo(
         channel: IStream = stack.importChannel(),
         batchSize: Int = 100,
@@ -79,6 +80,7 @@ class KopipesFunction(private val stack: KopipesStack, id: String, props: Kopipe
     }
 
     /** Reads a table's DynamoDB stream: the trigger of a control service, or the outbox of a BFF. */
+    @JvmOverloads
     fun triggeredBy(table: EventsTable, batchSize: Int = 5, retryAttempts: Int = 3): KopipesFunction =
         triggeredBy(table.table, batchSize, retryAttempts)
 
@@ -86,6 +88,7 @@ class KopipesFunction(private val stack: KopipesStack, id: String, props: Kopipe
      * Reads any table's stream, such as change data capture of an outside system. A failed batch is split and retried
      * [retryAttempts] times; `-1` retries until it succeeds or its records expire (24 hours).
      */
+    @JvmOverloads
     fun triggeredBy(table: ITable, batchSize: Int = 5, retryAttempts: Int = 3): KopipesFunction = apply {
         function.addEventSource(
             DynamoEventSource.Builder.create(table)
@@ -98,6 +101,7 @@ class KopipesFunction(private val stack: KopipesStack, id: String, props: Kopipe
     }
 
     /** Reads an SQS queue, such as delayed work. A message that fails stays on the queue and comes back. */
+    @JvmOverloads
     fun receives(queue: IQueue, batchSize: Int = 10): KopipesFunction = apply {
         function.addEventSource(SqsEventSource.Builder.create(queue).batchSize(batchSize).build())
     }
@@ -106,6 +110,7 @@ class KopipesFunction(private val stack: KopipesStack, id: String, props: Kopipe
      * Reads and writes [table], named to the runtime by [envVar]: `EVENT_TABLE_NAME` for an events microstore,
      * `ENTITY_TABLE_NAME` for a BFF's view.
      */
+    @JvmOverloads
     fun uses(table: EventsTable, envVar: String = EnvVars.EVENT_TABLE_NAME): KopipesFunction = uses(table.table, envVar)
 
     /** Reads and writes any table, named to the function by [envVar]. */

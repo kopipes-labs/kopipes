@@ -1,28 +1,14 @@
 package org.myorg.sut
 
-import software.amazon.awscdk.services.events.EventBus
-import software.amazon.awscdk.services.kinesis.Stream
+import io.kopipes.cdk.EventHub
+import io.kopipes.cdk.KopipesStack
+import io.kopipes.cdk.ServiceProps
 import software.constructs.Construct
 
-class EventHubStack(scope: Construct, serviceProps: ServiceProps) : BaseStack(scope, serviceProps) {
-
-    internal val bus: EventBus = newBus()
-    internal val stream1: Stream = newStream1()
-
-    init {
-        // Event Bus -> Kinesis Stream 1
-        publishToKinesis(bus, stream1)
-
-        // Event Bus -> CloudWatch Log Groups
-        logToCloudWatch(bus)
-
-        // Event Bus -> Archive
-        archiveFromBus(bus)
-    }
-
-    private fun newBus(): EventBus = EventBus.Builder
-        .create(this, "Bus")
-        .eventBusName("${service()}-${stage()}-bus")
-        .build()
-
+/**
+ * The sut subsystem's event hub: the bus every service publishes to, the default channel `s1` the services listen
+ * to, the archive and the log groups. See the `cdk` module's `EventHub`.
+ */
+class EventHubStack(scope: Construct, serviceProps: ServiceProps) : KopipesStack(scope, serviceProps) {
+    val eventHub = EventHub(this, "Hub")
 }

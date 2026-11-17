@@ -12,7 +12,7 @@ import software.amazon.awscdk.services.lambda.eventsources.KinesisEventSource
 
 fun RegionalHealthCheckStack.newStream1(): Stream {
     return Stream.Builder.create(this, "Stream1")
-        .streamName("${service()}-${stage()}-s1")
+        .streamName("${service}-${stage}-s1")
         .retentionPeriod(Duration.hours(24))
         .shardCount(shardCount())
         .encryption(StreamEncryption.MANAGED)
@@ -21,11 +21,11 @@ fun RegionalHealthCheckStack.newStream1(): Stream {
 
 fun RegionalHealthCheckStack.newKinesisBusRole(stream1: Stream): Role =
     Role.Builder.create(this, "BusRole")
-        .roleName("${service()}-${stage()}-${regionName()}-kinesis-role")
+        .roleName("${service}-${stage}-${regionName}-kinesis-role")
         .assumedBy(ServicePrincipal("events.amazonaws.com"))
         .inlinePolicies(
             mapOf(
-                "${service()}-${stage()}-internal" to PolicyDocument.Builder.create()
+                "${service}-${stage}-internal" to PolicyDocument.Builder.create()
                     .statements(
                         listOf(
                             PolicyStatement.Builder.create()

@@ -1,5 +1,7 @@
 package org.myorg.sut
 
+import io.kopipes.cdk.Stage
+
 import software.amazon.awscdk.Aws
 import software.amazon.awscdk.CfnResource
 import software.amazon.awscdk.services.dynamodb.*
@@ -10,13 +12,13 @@ import software.amazon.awscdk.services.lambda.StartingPosition
 import software.amazon.awscdk.services.lambda.eventsources.DynamoEventSource
 
 fun RegionalHealthCheckStack.entityTableName(): String =
-    "${service()}-${stage()}-tracer"
+    "${service}-${stage}-tracer"
 
 fun RegionalHealthCheckStack.tableArn(): String =
-    "arn:aws:dynamodb:${regionName()}:${Aws.ACCOUNT_ID}:table/${entityTableName()}"
+    "arn:aws:dynamodb:${regionName}:${Aws.ACCOUNT_ID}:table/${entityTableName()}"
 
 fun RegionalHealthCheckStack.tableStreamArn(): String =
-    "arn:aws:dynamodb:${regionName()}:${Aws.ACCOUNT_ID}:table/${entityTableName()}/stream/*"
+    "arn:aws:dynamodb:${regionName}:${Aws.ACCOUNT_ID}:table/${entityTableName()}/stream/*"
 
 fun RegionalHealthCheckStack.newEntitiesTable(): TableV2 {
     val table = TableV2.Builder.create(this, "EntitiesTable")
@@ -46,7 +48,7 @@ fun RegionalHealthCheckStack.newEntitiesTable(): TableV2 {
         .encryption(TableEncryptionV2.dynamoOwnedKey())
         .build()
 
-    if (stage() != Stage.LOCAL) {
+    if (stage != Stage.LOCAL) {
         val cfnTable = table.node.defaultChild as CfnResource
         cfnTable.cfnOptions.condition = isWestCondition()
     }
@@ -82,7 +84,7 @@ fun RegionalHealthCheckStack.consumeFromTable(
             .startingPosition(StartingPosition.TRIM_HORIZON)
             .let {
                 // This is failing in local dev. We need to check if it works in other envs.
-                if (stage() != Stage.LOCAL) it.filters(entitiesTableStreamFilterPatterns())
+                if (stage != Stage.LOCAL) it.filters(entitiesTableStreamFilterPatterns())
                 it
             }
             .build()
@@ -95,7 +97,7 @@ fun RegionalHealthCheckStack.entitiesTableStreamFilterPatterns(): List<Map<Strin
             "dynamodb" to mapOf(
                 "NewImage" to mapOf(
                     "awsregion" to mapOf(
-                        "S" to listOf(regionName())
+                        "S" to listOf(regionName)
                     )
                 )
             )

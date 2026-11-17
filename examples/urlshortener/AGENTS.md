@@ -10,7 +10,8 @@ The implementation language for this example is Java.
 This project will have the following components.
  - The base package will be org.myorg.urls
  - common-app/ will have Events, EventCodec and other shared classes.
- - common-infra/ will have the BaseStack.
+ - Each service's infra/ builds its stack from the `cdk` module's constructs (`KopipesStack`, `EventHub`,
+   `EventsTable`, `KopipesFunction`), in Java.
  - urls-event-hub - Will be similar to sut-event-hub.
  - urls-control-service -  Will be similar to sut-control-service.
    - It will read all the events, collect them and emit new events.

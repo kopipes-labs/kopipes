@@ -28,7 +28,7 @@ import software.constructs.Construct
  * @param transformHandler its handler; kopipes has one: `io.kopipes.aws.faults.FaultMonitorTransform::handleRequest`.
  * @param verificationQueue subscribes a FIFO queue to the topic, so integration tests can see the notifications.
  */
-data class FaultMonitorProps(
+data class FaultMonitorProps @JvmOverloads constructor(
     val transformCode: Code,
     val transformHandler: String,
     val verificationQueue: Boolean = false,

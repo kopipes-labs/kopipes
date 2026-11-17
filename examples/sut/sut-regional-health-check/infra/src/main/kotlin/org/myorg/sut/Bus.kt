@@ -9,7 +9,7 @@ import software.amazon.awscdk.services.logs.RetentionDays
 fun RegionalHealthCheckStack.newBus(): EventBus =
     EventBus.Builder
         .create(this, "Bus")
-        .eventBusName("${service()}-${stage()}-bus")
+        .eventBusName("${service}-${stage}-bus")
         .build()
 
 fun RegionalHealthCheckStack.grantAccessToBus(
@@ -22,20 +22,20 @@ fun RegionalHealthCheckStack.grantAccessToBus(
 fun RegionalHealthCheckStack.logToCloudWatch(bus: EventBus) {
     val logGroupEvents = LogGroup.Builder.create(this, "LogGroupEvents")
         .retention(RetentionDays.ONE_MONTH)
-        .logGroupName("/aws/events/${service()}-${stage()}-events")
+        .logGroupName("/aws/events/${service}-${stage}-events")
         .build()
 
     val logGroupFaults = LogGroup.Builder.create(this, "LogGroupFaults")
         .retention(RetentionDays.ONE_MONTH)
-        .logGroupName("/aws/events/${service()}-${stage()}-faults")
+        .logGroupName("/aws/events/${service}-${stage}-faults")
         .build()
 
     val logRole = Role.Builder.create(this, "LogRole")
-        .roleName("${service()}-${stage()}-${regionName()}-log-role")
+        .roleName("${service}-${stage}-${regionName}-log-role")
         .assumedBy(ServicePrincipal("events.amazonaws.com"))
         .inlinePolicies(
             mapOf(
-                "${service()}-${stage()}-log" to PolicyDocument.Builder.create()
+                "${service}-${stage}-log" to PolicyDocument.Builder.create()
                     .statements(
                         listOf(
                             PolicyStatement.Builder.create()

@@ -20,7 +20,7 @@ import software.constructs.Construct
  * @param archiveRetention how long the bus's archive keeps events; `null` for no archive.
  * @param logEvents logs every event and every fault to CloudWatch, to watch the bus while developing.
  */
-data class EventHubProps(
+data class EventHubProps @JvmOverloads constructor(
     val channelRetention: Duration = Duration.days(1),
     val shardCount: Int = 1,
     val archiveRetention: Duration? = Duration.days(14),
@@ -39,7 +39,7 @@ data class EventHubProps(
  * - **Faults** go to the [FaultMonitor], and the **event lake** gets everything but faults; each of those stacks
  *   owns its own rule on this bus.
  */
-class EventHub(stack: KopipesStack, id: String, props: EventHubProps = EventHubProps()) : Construct(stack, id) {
+class EventHub @JvmOverloads constructor(stack: KopipesStack, id: String, props: EventHubProps = EventHubProps()) : Construct(stack, id) {
 
     val bus: EventBus = EventBus.Builder.create(this, "Bus")
         .eventBusName(stack.hub.busName)

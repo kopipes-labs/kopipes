@@ -6,9 +6,9 @@ import software.amazon.awscdk.services.cloudwatch.CfnCompositeAlarm
 import software.amazon.awscdk.services.route53.CfnHealthCheck
 
 fun RegionalHealthCheckStack.createRegionalHealthCheck() {
-    val apigAlarmName = "${service()}-${stage()}-Apig5xxAlarm"
-    val dynamoDbAlarmName = "${service()}-${stage()}-DynamoDB5xxAlarm"
-    val regionalHealthAlarmName = "${service()}-${stage()}-${regionName()}"
+    val apigAlarmName = "${service}-${stage}-Apig5xxAlarm"
+    val dynamoDbAlarmName = "${service}-${stage}-DynamoDB5xxAlarm"
+    val regionalHealthAlarmName = "${service}-${stage}-${regionName}"
 
     val apig5xxAlarm = CfnAlarm.Builder.create(this, "Apig5xxAlarm")
         .alarmName(apigAlarmName)
@@ -18,7 +18,7 @@ fun RegionalHealthCheckStack.createRegionalHealthCheck() {
             listOf(
                 CfnAlarm.DimensionProperty.builder()
                     .name("ApiName")
-                    .value("${stage()}-${service()}")
+                    .value("${stage}-${service}")
                     .build()
             )
         )
@@ -38,7 +38,7 @@ fun RegionalHealthCheckStack.createRegionalHealthCheck() {
                 .alarmIdentifier(
                     CfnHealthCheck.AlarmIdentifierProperty.builder()
                         .name(apig5xxAlarm.ref)
-                        .region(regionName())
+                        .region(regionName)
                         .build()
                 )
                 .insufficientDataHealthStatus("LastKnownStatus")
@@ -56,7 +56,7 @@ fun RegionalHealthCheckStack.createRegionalHealthCheck() {
             listOf(
                 CfnAlarm.DimensionProperty.builder()
                     .name("TableName")
-                    .value("${service()}-${stage()}-entities")
+                    .value("${service}-${stage}-entities")
                     .build()
             )
         )
@@ -76,7 +76,7 @@ fun RegionalHealthCheckStack.createRegionalHealthCheck() {
                 .alarmIdentifier(
                     CfnHealthCheck.AlarmIdentifierProperty.builder()
                         .name(dynamoDb5xxAlarm.ref)
-                        .region(regionName())
+                        .region(regionName)
                         .build()
                 )
                 .insufficientDataHealthStatus("LastKnownStatus")

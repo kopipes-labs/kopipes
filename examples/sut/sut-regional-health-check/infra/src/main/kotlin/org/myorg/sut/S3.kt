@@ -13,7 +13,7 @@ import software.amazon.awscdk.services.s3.LifecycleRule
 
 fun RegionalHealthCheckStack.newBucket(): Bucket {
     val bucket = Bucket.Builder.create(this, "Bucket")
-        .bucketName("${org()}-${service()}-${stage()}-${regionName()}")
+        .bucketName("${org}-${service}-${stage}-${regionName}")
         .accessControl(BucketAccessControl.PRIVATE)
         .encryption(BucketEncryption.S3_MANAGED)
         .versioned(true)

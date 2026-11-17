@@ -29,7 +29,7 @@ graph LR
 -   **Java 21** implementation using Java Records for events and entities.
 -   **Jackson** for JSON serialization/deserialization.
 -   **Kotlin AWS SDK** usage from Java via coroutine bridges.
--   **CDK** infrastructure defined in Java.
+-   **CDK** infrastructure defined in Java, with the [`cdk`](../../cdk/README.md) module's constructs.
 -   Uses `PipelineRunner` and `Handlers` for Java-friendly pipeline execution.
 
 ## Building
@@ -44,11 +44,13 @@ To build the entire example:
 
 ## Deployment
 
-Each service has its own CDK infrastructure module. You can deploy them using the CDK CLI from their respective `infra` directories.
+Each service has its own CDK infrastructure module, built from the [`cdk`](../../cdk/README.md) module's constructs.
+Each defines a `-dev` and a `-local` stack; deploy the event hub first, then the BFF (the control service uses its
+table), then the control service. Build the apps' jars first.
 
 ```bash
 cd examples/urlshortener/urls-event-hub/infra
-cdk deploy "*"
+cdklocal deploy urls-event-hub-local    # or: cdk deploy urls-event-hub-dev
 ```
 
 (Note: Ensure you have the necessary AWS credentials and environment variables configured).

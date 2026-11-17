@@ -43,6 +43,18 @@ class ControlServiceStack(scope: Construct, props: ServiceProps) : KopipesStack(
 | `EventForwarding` | The hub's egress rule: external events with a type prefix → another subsystem's bus | Owned by the egress gateway that publishes them |
 | `RestApi` | API Gateway proxying every request to one function | For a BFF's API or an ingress gateway's webhook |
 
+## From Java
+
+The constructs work from Java too; props and wiring methods with defaults have `@JvmOverloads`, and the
+[urlshortener](../examples/urlshortener) example's stacks are written that way:
+
+```java
+EventsTable events = new EventsTable(this, "Events");
+new KopipesFunction(this, "listener", new KopipesFunctionProps(jar, "org.myorg.urls.ControlListenerHandler::handleRequest"))
+        .listenTo()
+        .uses(events);
+```
+
 ## Names
 
 Services find each other's resources by convention, not by passing references between stacks:

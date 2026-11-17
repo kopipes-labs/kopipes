@@ -25,7 +25,7 @@ import software.constructs.Construct
  * @param expiration how long the lake keeps events; `null` keeps them forever.
  * @param bufferingInterval how long Firehose collects events before writing an object.
  */
-data class EventLakeProps(
+data class EventLakeProps @JvmOverloads constructor(
     val expiration: Duration? = Duration.days(92),
     val bufferingInterval: Duration = Duration.seconds(60),
     val logRetention: RetentionDays = RetentionDays.THREE_DAYS,
@@ -37,7 +37,7 @@ data class EventLakeProps(
  * docs/EventLake.md). Objects are gzipped EventBridge events, under `<region>/` and Firehose's date prefix, in a
  * bucket named `<org>-<service>-<stage>-<region>`; the replay tool reads them from there.
  */
-class EventLake(stack: KopipesStack, id: String, props: EventLakeProps = EventLakeProps()) : Construct(stack, id) {
+class EventLake @JvmOverloads constructor(stack: KopipesStack, id: String, props: EventLakeProps = EventLakeProps()) : Construct(stack, id) {
 
     val bucket: Bucket = Bucket.Builder.create(this, "Bucket")
         .bucketName(stack.globalName())
