@@ -34,12 +34,14 @@ testing {
                 implementation(libs.aws.sdk.eventbridge)
                 implementation(libs.aws.sdk.kinesis)
                 implementation(libs.aws.sdk.lambda)
+                implementation(libs.aws.sdk.s3)
                 implementation(libs.aws.sdk.sqs)
                 implementation(libs.kotest.assertions)
                 implementation(libs.kotlinx.coroutines)
                 implementation(libs.kotlinx.serialization.json)
                 implementation(libs.slf4j.simple)
 
+                implementation(project(":aws"))
                 implementation(project(":examples:payments:common-gateway"))
             }
             targets {

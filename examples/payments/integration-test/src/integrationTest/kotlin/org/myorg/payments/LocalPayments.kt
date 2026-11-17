@@ -16,11 +16,13 @@ import aws.sdk.kotlin.services.kinesis.model.GetShardIteratorRequest
 import aws.sdk.kotlin.services.kinesis.model.ShardIteratorType
 import aws.sdk.kotlin.services.lambda.LambdaClient
 import aws.sdk.kotlin.services.lambda.model.InvokeRequest
+import aws.sdk.kotlin.services.s3.S3Client
 import aws.sdk.kotlin.services.sqs.SqsClient
 import aws.sdk.kotlin.services.sqs.model.DeleteMessageRequest
 import aws.sdk.kotlin.services.sqs.model.GetQueueUrlRequest
 import aws.sdk.kotlin.services.sqs.model.ReceiveMessageRequest
 import aws.smithy.kotlin.runtime.net.url.Url
+import io.kopipes.aws.tools.ResubmitFaults
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -47,6 +49,7 @@ object LocalPayments {
     private val kinesis by lazy { KinesisClient { region = REGION; endpointUrl = endpoint; credentialsProvider = credentials } }
     private val dynamoDb by lazy { DynamoDbClient { region = REGION; endpointUrl = endpoint; credentialsProvider = credentials } }
     private val sqs by lazy { SqsClient { region = REGION; endpointUrl = endpoint; credentialsProvider = credentials } }
+    private val s3 by lazy { S3Client { region = REGION; endpointUrl = endpoint; credentialsProvider = credentials; forcePathStyle = true } }
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -179,6 +182,39 @@ object LocalPayments {
         }
     }
 
+    // ---- The operator: resubmitting faults with the resubmit tool ----
+
+    private const val FAULT_BUCKET = "myorg-payments-event-fault-monitor-local-$REGION"
+
+    /** The faults [function] published that mention [text], read from the fault monitor's bucket by the resubmit tool. */
+    private suspend fun storedFaults(tool: ResubmitFaults, argv: ResubmitFaults.Args, text: String) =
+        tool.filterAndPrepareRequests(argv, s3).filter { it.invokeRequest?.payload?.decodeToString()?.contains(text) == true }
+
+    /** Every fault in the bucket (the tool puts [ResubmitFaults.Args.region] before the prefix, so it's left out). */
+    private fun resubmitArgs(function: String) =
+        ResubmitFaults.Args(bucket = FAULT_BUCKET, prefix = "$REGION/", functionname = function)
+
+    /**
+     * Resubmits the faults [function] published that mention [text], as the operator would: the resubmit tool reads
+     * them from the fault monitor's bucket (once Firehose has delivered them) and invokes the function with their
+     * records. Returns the tool's counters.
+     */
+    suspend fun resubmitFaults(function: String, text: String, timeout: Duration = 5.minutes): ResubmitFaults.Counters {
+        val tool = ResubmitFaults()
+        val argv = resubmitArgs(function)
+        val faults = poll(timeout, "the fault about $text in the fault monitor's bucket") {
+            storedFaults(tool, argv, text).takeIf { it.isNotEmpty() }
+        }
+        tool.invokeLambdas(argv, faults, lambda)
+        return tool.counters
+    }
+
+    /** Waits until the fault monitor's bucket holds [count] faults from [function] that mention [text]. */
+    suspend fun awaitStoredFaults(function: String, text: String, count: Int, timeout: Duration = 5.minutes): Int =
+        poll(timeout, "$count faults about $text in the fault monitor's bucket") {
+            storedFaults(ResubmitFaults(), resubmitArgs(function), text).size.takeIf { it >= count }
+        }
+
     // ---- The control service's deadlines ----
 
     /**
@@ -231,6 +267,8 @@ object LocalPayments {
 
     // ---- The card processor: its webhook, signed as the processor would ----
 
+    const val WEBHOOK_FUNCTION = "payments-card-processor-ingress-gateway-local-webhook"
+
     /** Posts a webhook body to the card processor ingress gateway, signed with the local secret unless [signed] is false. */
     suspend fun webhook(body: String, signed: Boolean = true): ApiResponse {
         val headers = buildMap {
@@ -238,7 +276,7 @@ object LocalPayments {
             if (signed) put(CardSignature.HEADER, CardSignature.sign("demo-signing-secret-local", System.currentTimeMillis() / 1000, body))
         }
         val response = lambda.invoke(InvokeRequest {
-            functionName = "payments-card-processor-ingress-gateway-local-webhook"
+            functionName = WEBHOOK_FUNCTION
             payload = json.encodeToString(ApiRequest("POST", "/webhooks/card-processor", headers, body)).toByteArray()
         })
         return json.decodeFromString(response.payload!!.decodeToString())

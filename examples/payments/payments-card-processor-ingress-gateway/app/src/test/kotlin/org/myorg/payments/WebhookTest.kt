@@ -6,11 +6,22 @@ import io.kopipes.aws.AwsKopipesContext
 import io.kopipes.aws.testsupport.TestContext
 import io.kopipes.core.JsonRaw
 import io.kopipes.core.sinks.EventPublisherInMemory
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 
 class WebhookTest {
 
@@ -34,14 +45,24 @@ class WebhookTest {
         WebhookContainer(context, secret, known, clock = { now })
     }
 
-    private fun post(body: String, signature: String? = CardSignature.sign(secret, now / 1000, body)) = webhook.handleRequest(
+    private fun post(body: String, signature: String? = CardSignature.sign(secret, now / 1000, body)) = webhook.handle(
         APIGatewayProxyRequestEvent()
             .withHttpMethod("POST")
             .withPath("/webhooks/card-processor")
             .withHeaders(signature?.let { mapOf(CardSignature.HEADER to it) } ?: emptyMap())
             .withBody(body),
-        TestContext(),
     )
+
+    /** Invokes the function as Lambda does: JSON in, JSON out. */
+    private fun invoke(input: String): JsonObject {
+        val output = ByteArrayOutputStream()
+        webhook.handleRequest(ByteArrayInputStream(input.encodeToByteArray()), output, TestContext())
+        return Json.parseToJsonElement(output.toString()).jsonObject
+    }
+
+    /** What the resubmit tool sends for faults whose records are these bodies. */
+    private fun resubmission(vararg bodies: String) =
+        buildJsonObject { put("Records", JsonArray(bodies.map { buildJsonObject { put("value", it) } })) }.toString()
 
     @Test
     fun `a credit that succeeded is FUNDS_DEPOSITED, answered once published`() {
@@ -107,6 +128,54 @@ class WebhookTest {
         // Assert
         response.statusCode shouldBe 200
         bus.faults().size shouldBe 1
+    }
+
+    @Test
+    fun `invoked by API Gateway - the request is read from its JSON, and the answer written as it expects`() {
+        // Arrange
+        val request = buildJsonObject {
+            put("httpMethod", "POST")
+            put("path", "/webhooks/card-processor")
+            put("headers", buildJsonObject { put(CardSignature.HEADER, CardSignature.sign(secret, now / 1000, body())) })
+            put("body", body())
+            put("isBase64Encoded", false)
+        }
+
+        // Act
+        val response = invoke(request.toString())
+
+        // Assert
+        response["statusCode"]?.jsonPrimitive?.int shouldBe 200
+        bus.getUows().single().event!!.id shouldBe "evt_1.FUNDS_DEPOSITED"
+    }
+
+    @Test
+    fun `resubmitted by the operator - the fault's body goes down the same pipeline, with no signature`() {
+        // Act
+        val response = invoke(resubmission(body()))
+
+        // Assert
+        response["statusCode"]?.jsonPrimitive?.int shouldBe 200
+        val event = bus.getUows().single().event
+        event.shouldBeInstanceOf<FundsDeposited>()
+        event.id shouldBe "evt_1.FUNDS_DEPOSITED"
+    }
+
+    @Test
+    fun `resubmitted but still unreadable - another fault, for the operator to look at again`() {
+        // Act
+        val response = invoke(resubmission("""{"not":"a webhook"}"""))
+
+        // Assert
+        response["statusCode"]?.jsonPrimitive?.int shouldBe 200
+        bus.faults().size shouldBe 1
+    }
+
+    @Test
+    fun `resubmitted before its deposit is known - the invocation fails, so the tool retries it`() {
+        // Act & Assert
+        shouldThrow<Exception> { invoke(resubmission(body(reference = "p-8"))) }.cause.shouldBeInstanceOf<PaymentNotKnownYet>()
+        bus.getUows().shouldBeEmpty()
     }
 
     @Test

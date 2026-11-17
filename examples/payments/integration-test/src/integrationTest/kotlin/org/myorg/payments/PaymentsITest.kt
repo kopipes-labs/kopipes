@@ -23,6 +23,9 @@ import org.myorg.payments.LocalPayments.ledgerRows
 import org.myorg.payments.LocalPayments.paymentBody
 import org.myorg.payments.LocalPayments.publish
 import org.myorg.payments.LocalPayments.submit
+import org.myorg.payments.LocalPayments.WEBHOOK_FUNCTION
+import org.myorg.payments.LocalPayments.awaitStoredFaults
+import org.myorg.payments.LocalPayments.resubmitFaults
 import org.myorg.payments.LocalPayments.webhook
 import org.myorg.payments.PaymentEvent.Companion.DEPOSIT_FAILED
 import org.myorg.payments.PaymentEvent.Companion.DEPOSIT_REQUESTED
@@ -244,6 +247,21 @@ class PaymentsITest {
         tooEarly.statusCode shouldBe 503
         garbled.statusCode shouldBe 200
         awaitFault(paymentId("unreadable"))
+    }
+
+    @Test
+    fun `a webhook fault, resubmitted by the operator - the tool finds its body and the webhook function takes it again`(): Unit = runBlocking {
+        // Arrange: a signed webhook we can't read, so a fault with its body, delivered to the fault monitor's bucket
+        val text = paymentId("resubmitted")
+        webhook("""{"unreadable":"$text"}""").statusCode shouldBe 200
+
+        // Act
+        val counters = resubmitFaults(WEBHOOK_FUNCTION, text)
+
+        // Assert: the function took the body, with no signature, and (still unreadable) faulted again
+        counters.errors shouldBe 0
+        counters.invoked!!.statuses shouldBe mapOf(200 to 1)
+        awaitStoredFaults(WEBHOOK_FUNCTION, text, count = 2)
     }
 
     @Test

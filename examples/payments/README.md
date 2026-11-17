@@ -146,6 +146,11 @@ keys.
   is on the bus; a webhook for a deposit it hasn't heard of yet, or a bus that's down, is a `503`, so the processor
   sends it again; a signed but unreadable body is a fault, then `200`. The event id comes from the webhook's own id,
   so a redelivered webhook is the same event.
+- **Resubmitting its faults:** the fault keeps the body, and the resubmit tool sends it back to the same function as
+  `{"Records": [{"value": "<body>"}]}`. The handler is a `RequestStreamHandler`, so one function takes both inputs: an
+  API Gateway request is checked and signed as above. A resubmission skips the signature, because its bodies were
+  verified when they arrived and only the operator can invoke the function. It goes down the same pipeline
+  (`ResubmittedRecords` in `aws` reads it).
 
 ### Payments egress gateway
 

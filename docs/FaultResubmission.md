@@ -94,6 +94,20 @@ export FUNCTION_NAME=my-service-processor
 ./gradlew :tools:resubmit-events:run
 ```
 
+### What the function receives
+
+The tool invokes the function with `{"Records": [payload, ...]}`, the payloads of the fault's record snapshots. For a
+stream function that's its event source's own event (Kinesis, SQS, DynamoDB streams), so its usual handler takes it.
+
+A function that isn't triggered by a stream needs to recognize it. An HTTP ingress, such as a webhook behind API
+Gateway, keeps the request body as a `JsonRaw` record, and its fault snapshots it as `{"value": <body>}` (kind
+`json`). Its handler reads its input as a stream: `ResubmittedRecords.jsonRawRecordsOf(input)` gives back the
+`JsonRaw` records when the input is a resubmission and `null` when it's an API Gateway request (whose top-level keys
+are fixed, so a caller can't forge one). Resubmitted records skip the request's checks, such as a signature: they
+passed them when they first arrived, and only someone allowed to invoke the function can send them. If one can't be
+handled, the invocation should fail, so the tool retries it or reports it. See the card processor's webhook in
+`examples/payments`.
+
 ## Operational Guidelines
 
 - **Fix First**: Always identify and resolve the root cause of the fault before resubmitting.
