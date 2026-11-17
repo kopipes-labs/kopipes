@@ -2,6 +2,15 @@
 
 The framework provides built-in support for **Envelope Encryption**, allowing you to protect sensitive data at the field level within your events and DynamoDB items. It uses AWS Key Management Service (KMS) to manage data keys and AES-GCM for symmetric data encryption.
 
+## Why encrypt at the field level
+
+Disk and database encryption protect against a stolen disk, not against anyone with access to the data: the cloud
+decrypts it transparently for every authorized reader. Events make this sharper, because they are copied to every
+consumer's store and kept forever in the event lake. *Software Architecture Patterns for Serverless Systems*
+(Ch. 10 › *Redacting sensitive data*) therefore encrypts sensitive fields in the application, before an event leaves
+its producer: the bus, the channels, the lake and every consumer that doesn't need the data hold only ciphertext.
+Consumers that do need it decrypt on the way in.
+
 ## Overview
 
 Envelope encryption is a practice where you encrypt your data with a data key, and then encrypt the data key with a master key managed by a service like AWS KMS.
@@ -130,6 +139,16 @@ val decryptedItem = EventEncryption.decryptData(item, kms)
 ## Fault Handling
 
 If decryption fails (e.g., due to missing KMS permissions or corrupted data), the framework will catch the exception and create a `FaultEvent`. The original, undecrypted event is preserved in `UnitOfWork.undecryptedEvent` for diagnostic purposes.
+
+## Erasure (crypto-shredding)
+
+Keeping every event forever conflicts with a person's right to have their data erased. The book's answer is
+**crypto-shredding**: encrypt a person's data under a key specific to them, and delete that key on request. The
+events stay in the lake, but the person's fields can no longer be read.
+
+kopipes doesn't manage subject-specific keys. To build it, wrap each data key under a per-subject key (for example,
+one KMS key or one stored key per customer), record which key in `eem`, and make an erasure request an event that
+each service handles by deleting the keys it owns.
 
 ## Security Considerations
 

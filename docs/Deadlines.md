@@ -3,6 +3,10 @@
 A control service often has to act when something *didn't* happen: a step that got no answer by its deadline. kopipes
 builds deadlines from two pieces it already has, the events table and DynamoDB's TTL. No timers, no schedulers.
 
+It is the *expire* step of the book's control service, and the timer behind its complex event processing: a rule can't
+fire on an event that never arrived, so a timer fires instead and the rule checks what is missing (*Software
+Architecture Patterns for Serverless Systems*, Ch. 8).
+
 ## How it works
 
 1. **Start the clock.** A `CorrelatePipeline` saves the event that starts a step again, in a *side partition*

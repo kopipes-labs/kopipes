@@ -10,6 +10,25 @@ The health check is designed to answer one primary question:
 
 It does this by monitoring failures in critical resources such as API Gateway and DynamoDB, then aggregating those signals into a regional health result.
 
+## Why a regional check
+
+In a serverless system there are no machines to check: AWS runs and scales Lambda, API Gateway and DynamoDB for
+you. What can fail is a **cloud service in a region**, and when it does there is nothing to fix or restart. The
+only remedy is to send traffic to another region. So the check works one level up: it asks whether every cloud
+service the subsystem relies on is healthy in this region, and marks the **whole region** unhealthy if any one of them
+isn't. Transactions should not criss-cross regions to route around one broken service (*Software Architecture
+Patterns for Serverless Systems*, Ch. 9 › *Checking regional health*).
+
+The check combines two signals:
+
+- **Error metrics** from the services that publish good ones: API Gateway `5XXError`, DynamoDB `SystemErrors`.
+- **A tracer** for the services whose metrics don't show an outage: a synthetic canary, running in the *other*
+  region, calls a health API every minute; the call writes a tracer item that travels through DynamoDB streams, S3,
+  SNS, SQS, EventBridge and Kinesis and back to the table. If the previous tracer didn't make it round, the next
+  check fails.
+
+![Regional health check: the tracer loop and the health signal](images/RegionalHealthCheck.svg)
+
 ## High-Level Overview
 
 The Regional Health Check is built around CloudWatch alarms and Route 53 health checks.
@@ -82,13 +101,6 @@ The child checks are:
 The calculated health check uses a health threshold that requires both child checks to be healthy. If either child check becomes unhealthy, the calculated regional health check becomes unhealthy.
 
 This final calculated health check is the main regional health signal.
-
-## Infrastructure Diagram
-
-![Regional health check: the tracer loop and the health signal](images/RegionalHealthCheck.svg)
-
-The tracer loop sends a synthetic event through every service the region uses; the health signal combines the
-API Gateway and DynamoDB alarms into one Route 53 health check.
 
 ## Data Flow
 
@@ -211,6 +223,15 @@ The Regional Health Check can be used for:
 - Incident detection
 - Dashboards and operational visibility
 - Automated remediation workflows
+
+## Tuning and testing
+
+- **Avoid flapping.** Thresholds and evaluation periods that are too sensitive make traffic fail over and back on
+  every blip. Require errors over several consecutive periods.
+- **Test the failover.** Inject failures (chaos tests) and run regular failover drills, so the first real failover
+  isn't the first one.
+- **Expect a few minutes.** Alarms, health checks and DNS take minutes to move traffic. Frontends that work offline
+  and services that tolerate eventual consistency carry users through the gap.
 
 ## Summary
 
