@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="530" viewBox="0 0 1160 530" role="img" aria-label="From a Lambda batch to AWS, one unit of work at a time">
+
+  <style>
+    .sans { font-family: Helvetica, Arial, sans-serif; }
+    .mono { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+    .kicker { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+    .title { font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; fill: #141A2E; }
+    .sub { font-family: Helvetica, Arial, sans-serif; font-size: 13px; fill: #5B6270; }
+    .code { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: #141A2E; }
+    .label { font-family: Helvetica, Arial, sans-serif; font-size: 13px; fill: #141A2E; }
+    .note { font-family: Helvetica, Arial, sans-serif; font-size: 13px; font-style: italic; fill: #5B6270; }
+  </style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#141A2E"/></marker><marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E5489B"/></marker><marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C4511A"/></marker><marker id="v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8B5CF6"/></marker></defs>
+<rect width="1160" height="530" fill="#FFFFFF"/>
+<text x="40" y="44" class="kicker" fill="#C4511A">KOPIPES · HOW A BATCH FLOWS</text>
+<text x="40" y="80" class="sans" font-size="28" font-weight="700" fill="#141A2E">From a Lambda batch to AWS, one unit of work at a time</text>
+<rect x="40" y="140" width="180" height="110" rx="10" fill="#FFFFFF" stroke="#C4511A" stroke-width="2"/>
+<text x="56" y="164" class="kicker" fill="#C4511A">AWS EVENT</text>
+<text x="56" y="186" class="title">Lambda batch</text>
+<text x="56" y="206" class="sub">Kinesis · SQS · SNS</text>
+<text x="56" y="223" class="sub">DynamoDB stream · S3</text>
+<rect x="260" y="140" width="180" height="110" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="276" y="164" class="kicker" fill="#8B5CF6">ADAPTER</text>
+<text x="276" y="186" class="title">Decode</text>
+<text x="276" y="206" class="sub">records → units of work</text>
+<text x="276" y="223" class="sub">with your EventCodec</text>
+<rect x="480" y="140" width="180" height="110" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="496" y="164" class="kicker" fill="#8B5CF6">ASSEMBLER</text>
+<text x="496" y="186" class="title">Fan out</text>
+<text x="496" y="206" class="sub">the same flow to</text>
+<text x="496" y="223" class="sub">every pipeline</text>
+<rect x="700" y="112" width="210" height="74" rx="10" fill="#F4F0FE" stroke="#8B5CF6" stroke-width="2"/>
+<text x="716" y="136" class="kicker" fill="#8B5CF6">PIPELINE · COLLECT</text>
+<text x="716" y="158" class="title">flavor + your rules</text>
+<rect x="700" y="204" width="210" height="74" rx="10" fill="#F4F0FE" stroke="#8B5CF6" stroke-width="2"/>
+<text x="716" y="228" class="kicker" fill="#8B5CF6">PIPELINE · EVALUATE</text>
+<text x="716" y="250" class="title">flavor + your rules</text>
+<rect x="950" y="140" width="170" height="110" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="966" y="164" class="kicker" fill="#E5489B">SINKS</text>
+<text x="966" y="186" class="title">Write, publish</text>
+<text x="966" y="206" class="sub">DynamoDB · S3</text>
+<text x="966" y="223" class="sub">EventBridge</text>
+<path d="M220,195.0 H258" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M440,195.0 H478" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M660,195.0 H675 V149 H698" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M660,195.0 H675 V241 H698" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M910,149 H928 V195.0 H948" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M910,241 H928 V195.0" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<rect x="700" y="340" width="210" height="92" rx="10" fill="#FCEFF6" stroke="#E5489B" stroke-width="2"/>
+<text x="716" y="364" class="kicker" fill="#E5489B">FAULT MANAGER</text>
+<text x="716" y="386" class="title">FaultEvent</text>
+<text x="716" y="406" class="sub">error + snapshot +</text>
+<text x="716" y="423" class="sub">the original record</text>
+<rect x="950" y="340" width="170" height="92" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="966" y="364" class="kicker" fill="#E5489B">FAULT MONITOR</text>
+<text x="966" y="386" class="title">Stored in S3</text>
+<text x="966" y="406" class="sub">until the bug is fixed</text>
+<path d="M805,280 V338" fill="none" stroke="#E5489B" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#p)"/>
+<rect x="753.8" y="302" width="102.4" height="18" fill="#FFFFFF" opacity="0.92" rx="3"/>
+<text x="805" y="315" text-anchor="middle" class="label" fill="#E5489B">a record fails</text>
+<path d="M910,386 H948" fill="none" stroke="#E5489B" stroke-width="1.8" marker-end="url(#p)"/>
+<path d="M1035,432 V462 H130 V252" fill="none" stroke="#E5489B" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#p)"/>
+<rect x="330.6" y="454" width="458.8" height="18" fill="#FFFFFF" opacity="0.92" rx="3"/>
+<text x="560" y="467" text-anchor="middle" class="label" fill="#E5489B">resubmit-events sends the record back to the function that failed it</text>
+<rect x="40" y="490" width="5" height="32" fill="#8B5CF6"/>
+<rect x="40" y="506" width="5" height="16" fill="#C4511A"/>
+<text x="62" y="512" class="sans" font-size="17" fill="#141A2E"><tspan font-weight="700">One bad record never blocks the batch.</tspan> It becomes a fault; the rest of the batch carries on.</text>
+</svg>

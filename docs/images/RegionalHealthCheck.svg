@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1290" height="860" viewBox="0 0 1290 860" role="img" aria-label="Is this region healthy enough to take traffic?">
+
+  <style>
+    .sans { font-family: Helvetica, Arial, sans-serif; }
+    .mono { font-family: SFMono-Regular, Menlo, Consolas, monospace; }
+    .kicker { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+    .title { font-family: Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; fill: #141A2E; }
+    .sub { font-family: Helvetica, Arial, sans-serif; font-size: 13px; fill: #5B6270; }
+    .code { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; fill: #141A2E; }
+    .label { font-family: Helvetica, Arial, sans-serif; font-size: 13px; fill: #141A2E; }
+    .note { font-family: Helvetica, Arial, sans-serif; font-size: 13px; font-style: italic; fill: #5B6270; }
+  </style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#141A2E"/></marker><marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#E5489B"/></marker><marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C4511A"/></marker><marker id="v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8B5CF6"/></marker></defs>
+<rect width="1290" height="860" fill="#FFFFFF"/>
+<text x="40" y="44" class="kicker" fill="#C4511A">PATTERN · REGIONAL HEALTH CHECK</text>
+<text x="40" y="80" class="sans" font-size="28" font-weight="700" fill="#141A2E">Is this region healthy enough to take traffic?</text>
+<rect x="30" y="110" width="1230" height="300" rx="14" fill="#F5F3EE" stroke="#8B5CF6" stroke-width="2"/>
+<text x="50" y="138" class="kicker" fill="#8B5CF6">TRACER LOOP · a synthetic event crosses every service the region uses</text>
+<rect x="55" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#C4511A" stroke-width="2"/>
+<text x="71" y="184" class="kicker" fill="#C4511A">SYNTHETICS</text>
+<text x="71" y="206" class="title">Canary</text>
+<rect x="260" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="276" y="184" class="kicker" fill="#8B5CF6">API GATEWAY</text>
+<text x="276" y="206" class="title">Check health</text>
+<rect x="465" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="481" y="184" class="kicker" fill="#8B5CF6">DYNAMODB</text>
+<text x="481" y="206" class="title">Tracer table</text>
+<rect x="670" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="686" y="184" class="kicker" fill="#8B5CF6">LAMBDA</text>
+<text x="686" y="206" class="title">Table trigger</text>
+<rect x="875" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="891" y="184" class="kicker" fill="#8B5CF6">S3</text>
+<text x="891" y="206" class="title">Tracer bucket</text>
+<rect x="1080" y="160" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="1096" y="184" class="kicker" fill="#8B5CF6">SNS</text>
+<text x="1096" y="206" class="title">Topic</text>
+<rect x="1080" y="310" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="1096" y="334" class="kicker" fill="#8B5CF6">SQS</text>
+<text x="1096" y="356" class="title">Queue</text>
+<rect x="875" y="310" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="891" y="334" class="kicker" fill="#8B5CF6">LAMBDA</text>
+<text x="891" y="356" class="title">S3 trigger</text>
+<rect x="670" y="310" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="686" y="334" class="kicker" fill="#E5489B">EVENTBRIDGE</text>
+<text x="686" y="356" class="title">Bus</text>
+<rect x="465" y="310" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="481" y="334" class="kicker" fill="#E5489B">KINESIS</text>
+<text x="481" y="356" class="title">Stream</text>
+<rect x="260" y="310" width="150" height="66" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="276" y="334" class="kicker" fill="#8B5CF6">LAMBDA</text>
+<text x="276" y="356" class="title">Kinesis trigger</text>
+<path d="M205,193.0 H258" fill="none" stroke="#141A2E" stroke-width="1.8" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<text x="232.5" y="184.0" text-anchor="middle" class="sub">probe</text>
+<path d="M410,193.0 H463" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="437.5" y="184.0" text-anchor="middle" class="sub">update</text>
+<path d="M615,193.0 H668" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="642.5" y="184.0" text-anchor="middle" class="sub">stream</text>
+<path d="M820,193.0 H873" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="847.5" y="184.0" text-anchor="middle" class="sub">put</text>
+<path d="M1025,193.0 H1078" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="1052.5" y="184.0" text-anchor="middle" class="sub">notify</text>
+<path d="M1155.0,226 V308" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="1165.0" y="272.0" text-anchor="start" class="label">deliver</text>
+<path d="M1080,343.0 H1027" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="1052.5" y="334.0" text-anchor="middle" class="sub">trigger</text>
+<path d="M875,343.0 H822" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="847.5" y="334.0" text-anchor="middle" class="sub">put</text>
+<path d="M670,343.0 H617" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="642.5" y="334.0" text-anchor="middle" class="sub">rule</text>
+<path d="M465,343.0 H412" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="437.5" y="334.0" text-anchor="middle" class="sub">trigger</text>
+<path d="M335.0,310 V256 H540.0 V228" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="437.5" y="251" text-anchor="middle" class="label">update: the loop closed</text>
+<rect x="30" y="440" width="1230" height="330" rx="14" fill="#FCEFF6" stroke="#E5489B" stroke-width="2"/>
+<text x="50" y="468" class="kicker" fill="#E5489B">HEALTH SIGNAL · CloudWatch alarms, combined by Route 53</text>
+<rect x="60" y="490" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#C4511A" stroke-width="2"/>
+<text x="76" y="514" class="kicker" fill="#C4511A">API GATEWAY</text>
+<text x="76" y="536" class="title">5XXError metric</text>
+<rect x="330" y="490" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="346" y="514" class="kicker" fill="#E5489B">ALARM</text>
+<text x="346" y="536" class="title">API Gateway 5XX</text>
+<rect x="640" y="490" width="230" height="70" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="656" y="514" class="kicker" fill="#8B5CF6">ROUTE 53</text>
+<text x="656" y="536" class="title">API health check</text>
+<rect x="60" y="680" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#C4511A" stroke-width="2"/>
+<text x="76" y="704" class="kicker" fill="#C4511A">DYNAMODB</text>
+<text x="76" y="726" class="title">SystemErrors metric</text>
+<rect x="330" y="680" width="220" height="70" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="346" y="704" class="kicker" fill="#E5489B">ALARM</text>
+<text x="346" y="726" class="title">DynamoDB errors</text>
+<rect x="640" y="680" width="230" height="70" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="656" y="704" class="kicker" fill="#8B5CF6">ROUTE 53</text>
+<text x="656" y="726" class="title">DynamoDB health check</text>
+<rect x="340" y="583" width="200" height="70" rx="10" fill="#FFFFFF" stroke="#E5489B" stroke-width="2"/>
+<text x="356" y="607" class="kicker" fill="#E5489B">COMPOSITE ALARM</text>
+<text x="356" y="629" class="title">Regional alarm</text>
+<rect x="960" y="535" width="270" height="112" rx="10" fill="#FFFFFF" stroke="#8B5CF6" stroke-width="2"/>
+<text x="976" y="559" class="kicker" fill="#8B5CF6">ROUTE 53 · OUTPUT</text>
+<text x="976" y="581" class="title">Regional health check</text>
+<text x="976" y="601" class="sub">healthy only when both</text>
+<text x="976" y="618" class="sub">child checks are healthy</text>
+<path d="M280,525 H328" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M550,525 H638" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M870,525 H900 V565 H958" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M280,715 H328" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M550,715 H638" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M870,715 H900 V605 H958" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M440,560 V581" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<path d="M440,680 V655" fill="none" stroke="#141A2E" stroke-width="1.8" marker-end="url(#a)"/>
+<text x="552" y="625" text-anchor="start" class="note">stack output: the regional alarm</text>
+<text x="1095" y="670" text-anchor="middle" class="note">the region&#x27;s health signal</text>
+<rect x="40" y="798" width="5" height="32" fill="#8B5CF6"/>
+<rect x="40" y="814" width="5" height="16" fill="#C4511A"/>
+<text x="62" y="820" class="sans" font-size="17" fill="#141A2E"><tspan font-weight="700">Conservative by design.</tspan> Server-side errors in either dependency make the region unhealthy; missing data doesn&#x27;t.</text>
+</svg>

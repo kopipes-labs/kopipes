@@ -85,13 +85,14 @@ This final calculated health check is the main regional health signal.
 
 ## Infrastructure Diagram
 
-For a visual representation of the stack, including the Tracer Flow and monitoring layers, see the [Regional Health Check diagram](diagrams/RegionalHealthCheck.png).
+![Regional health check: the tracer loop and the health signal](images/RegionalHealthCheck.svg)
+
+The tracer loop sends a synthetic event through every service the region uses; the health signal combines the
+API Gateway and DynamoDB alarms into one Route 53 health check.
 
 ## Data Flow
 
 The data flow is metric-driven rather than request-driven.
-
-![RegionalHealthCheck](diagrams/RegionalHealthCheck.png)
 
 ```text
 Client traffic

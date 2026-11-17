@@ -29,16 +29,7 @@ kopipes gives you that plumbing as ready-made **pipelines** you configure with y
 
 ## How it works
 
-```mermaid
-flowchart LR
-    src["Kinesis, SQS,<br/>DynamoDB stream, ..."] --> adapter["Adapter"]
-    adapter --> asm["PipelineAssembler"]
-    asm --> p1["Pipeline<br/>(flavor + your rules)"]
-    asm --> p2["Pipeline"]
-    p1 --> out["DynamoDB, S3,<br/>EventBridge"]
-    p2 --> out
-    p1 -. error .-> fault["Fault event<br/>→ fault monitor → resubmit"]
-```
+![How a batch flows: adapter, assembler, pipelines, sinks, and faults](docs/images/BatchFlow.svg)
 
 An adapter turns the Lambda's batch into a `Flow` of units of work; each pipeline picks the events it wants and does
 one job; failures become fault events, and the rest of the batch carries on. [How kopipes works](docs/Concepts.md)

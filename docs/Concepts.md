@@ -9,24 +9,7 @@ use. Read it before the guides.
 A Lambda function receives a batch of records from a stream, a queue, a table's stream or an HTTP request. kopipes
 turns the batch into a `Flow` of units of work, runs it through your pipelines, and sends the results to AWS.
 
-```mermaid
-flowchart LR
-    src["AWS event<br/>(Kinesis, SQS, DynamoDB stream, S3, API Gateway...)"]
-    adapter["Adapter<br/>decode records into events"]
-    asm["PipelineAssembler<br/>fans the flow out"]
-    p1["Pipeline<br/>(flavor + your rules)"]
-    p2["Pipeline"]
-    out["Sinks and publisher<br/>DynamoDB, S3, EventBridge"]
-    fm["FaultManager"]
-    bus["Event hub<br/>(fault events)"]
-
-    src --> adapter --> asm
-    asm --> p1 --> out
-    asm --> p2 --> out
-    p1 -. error .-> fm
-    p2 -. error .-> fm
-    fm -. FaultEvent .-> bus
-```
+![How a batch flows: adapter, assembler, pipelines, sinks, and faults](images/BatchFlow.svg)
 
 1. **An adapter** (`KinesisAdapter`, `DynamodbAdapter`, `SqsAdapter`...) turns each record into a `UnitOfWork`,
    decoding the payload into an `Event` with your `EventCodec`. The original record stays in the unit of work.
