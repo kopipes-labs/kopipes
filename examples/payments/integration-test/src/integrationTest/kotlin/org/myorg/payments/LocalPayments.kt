@@ -10,6 +10,7 @@ import aws.sdk.kotlin.services.eventbridge.EventBridgeClient
 import aws.sdk.kotlin.services.eventbridge.model.PutEventsRequest
 import aws.sdk.kotlin.services.eventbridge.model.PutEventsRequestEntry
 import aws.sdk.kotlin.services.kinesis.KinesisClient
+import aws.sdk.kotlin.services.kinesis.model.ExpiredIteratorException
 import aws.sdk.kotlin.services.kinesis.model.GetRecordsRequest
 import aws.sdk.kotlin.services.kinesis.model.GetShardIteratorRequest
 import aws.sdk.kotlin.services.kinesis.model.ShardIteratorType
@@ -104,27 +105,53 @@ object LocalPayments {
 
     // ---- What the services publish: the default channel ----
 
+    /** Everything read from the default channel so far, and where to read on from. */
+    private val channelRecords = mutableListOf<String>()
+    private var channelIterator: String? = null
+    private var lastSequence: String? = null
+
+    /**
+     * Reads what's new on the default channel since the last call. Reading from the start every time would compete
+     * with the services for the shard's few reads per second, and slow them all down.
+     */
+    private suspend fun readChannel() {
+        while (true) {
+            val iterator = channelIterator ?: kinesis.getShardIterator(GetShardIteratorRequest {
+                streamName = "payments-event-hub-local-s1"
+                shardId = "shardId-000000000000"
+                if (lastSequence == null) {
+                    shardIteratorType = ShardIteratorType.TrimHorizon
+                } else {
+                    shardIteratorType = ShardIteratorType.AfterSequenceNumber
+                    startingSequenceNumber = lastSequence
+                }
+            }).shardIterator
+            val response = try {
+                kinesis.getRecords(GetRecordsRequest { shardIterator = iterator; limit = 1000 })
+            } catch (e: ExpiredIteratorException) {
+                channelIterator = null
+                continue
+            }
+            response.records.forEach { record ->
+                channelRecords += record.data.decodeToString()
+                lastSequence = record.sequenceNumber
+            }
+            channelIterator = response.nextShardIterator
+            if (response.records.isEmpty() || response.millisBehindLatest == 0L) return
+            delay(250)
+        }
+    }
+
     /** The events on the default channel for [paymentId], in order. */
     suspend fun channel(paymentId: String): List<PaymentEvent> {
-        val iterator = kinesis.getShardIterator(GetShardIteratorRequest {
-            streamName = "payments-event-hub-local-s1"
-            shardId = "shardId-000000000000"
-            shardIteratorType = ShardIteratorType.TrimHorizon
-        }).shardIterator
-        val events = mutableListOf<PaymentEvent>()
-        var next = iterator
-        while (next != null) {
-            val response = kinesis.getRecords(GetRecordsRequest { shardIterator = next })
-            response.records.forEach { record ->
-                val text = record.data.decodeToString()
-                val paymentIdInRecord = runCatching {
+        readChannel()
+        return channelRecords
+            .filter { text ->
+                runCatching {
                     json.parseToJsonElement(text).jsonObject["payment"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
-                }.getOrNull()
-                if (paymentIdInRecord == paymentId) events += PaymentsEventCodec.decode(text) as PaymentEvent
+                }.getOrNull() == paymentId
             }
-            next = if (response.records.isEmpty()) null else response.nextShardIterator
-        }
-        return events
+            .map { PaymentsEventCodec.decode(it) as PaymentEvent }
     }
 
     /** Waits until an event of [type] for the payment is on the default channel, and returns it. */
@@ -172,6 +199,21 @@ object LocalPayments {
                 key = mapOf("pk" to item.getValue("pk"), "sk" to item.getValue("sk"))
             })
         }
+    }
+
+    // ---- The card processor: its webhook, signed as the processor would ----
+
+    /** Posts a webhook body to the card processor ingress gateway, signed with the local secret unless [signed] is false. */
+    suspend fun webhook(body: String, signed: Boolean = true): ApiResponse {
+        val headers = buildMap {
+            put("Content-Type", "application/json")
+            if (signed) put(CardSignature.HEADER, CardSignature.sign("demo-signing-secret-local", System.currentTimeMillis() / 1000, body))
+        }
+        val response = lambda.invoke(InvokeRequest {
+            functionName = "payments-card-processor-ingress-gateway-local-webhook"
+            payload = json.encodeToString(ApiRequest("POST", "/webhooks/card-processor", headers, body)).toByteArray()
+        })
+        return json.decodeFromString(response.payload!!.decodeToString())
     }
 
     // ---- Core checking (simulated): its ledger ----

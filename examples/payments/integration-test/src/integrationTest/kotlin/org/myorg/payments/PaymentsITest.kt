@@ -19,6 +19,8 @@ import org.myorg.payments.LocalPayments.ledgerRows
 import org.myorg.payments.LocalPayments.paymentBody
 import org.myorg.payments.LocalPayments.publish
 import org.myorg.payments.LocalPayments.submit
+import org.myorg.payments.LocalPayments.webhook
+import org.myorg.payments.PaymentEvent.Companion.DEPOSIT_FAILED
 import org.myorg.payments.PaymentEvent.Companion.DEPOSIT_REQUESTED
 import org.myorg.payments.PaymentEvent.Companion.FUNDS_DEPOSITED
 import org.myorg.payments.PaymentEvent.Companion.FUNDS_REFUNDED
@@ -31,12 +33,13 @@ import org.myorg.payments.PaymentEvent.Companion.REFUND_FAILED
 import org.myorg.payments.PaymentEvent.Companion.REFUND_REQUESTED
 import org.myorg.payments.PaymentEvent.Companion.WITHDRAWAL_FAILED
 import org.myorg.payments.PaymentEvent.Companion.WITHDRAWAL_REQUESTED
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * A payment through the deployed services, with core checking simulated by its gateways (accounts `C-2`, `C-9`, `C-5`
- * answer differently; see PaymentsServiceSpecs.md › Simulation mode). The card processor's gateways aren't built yet,
- * so the tests play them: they publish the deposit's answer to the bus.
+ * Payments through the deployed subsystem, end to end. The outside systems are simulated by their gateways, and the
+ * account decides what they answer (PaymentsServiceSpecs.md › Simulation mode): `C-2`, `C-9` and `C-5` for core
+ * checking, `K-3`, `K-4` and `K-7` for the card processor, anything else succeeds.
  */
 class PaymentsITest {
 
@@ -44,152 +47,146 @@ class PaymentsITest {
 
     private fun paymentId(name: String) = "it-$run-$name"
 
-    private val cardProcessor = "payments-card-processor-ingress-gateway"
-
-    /** Submits through the BFF and waits for core checking's answer to the withdrawal. */
-    private suspend fun submitted(name: String, from: String = "C-1"): String {
+    /** Submits through the BFF, from checking account [from] to card [to]. */
+    private suspend fun submitted(name: String, from: String = "C-1", to: String = "K-2"): String {
         val id = paymentId(name)
-        submit(id, body = paymentBody(from = from)).statusCode shouldBe 202
+        submit(id, body = paymentBody(from = from, to = to)).statusCode shouldBe 202
         return id
     }
 
-    /** ... and for the control service to ask for the deposit. */
-    private suspend fun sentToCard(name: String, from: String = "C-1"): Payment {
-        val id = submitted(name, from)
-        return awaitEvent(id, DEPOSIT_REQUESTED).payment
-    }
-
-    private suspend fun cardAnswers(event: PaymentEvent) = publish(event, cardProcessor)
-
     @Test
-    fun `happy path - withdrawn by core checking, deposited, completed`(): Unit = runBlocking {
-        // Arrange
-        val payment = sentToCard("happy")
-        awaitStatus(payment.id, "SENT_TO_CARD")
-
-        // Act
-        cardAnswers(FundsDeposited(payment, id = "${payment.id}.deposited", timestamp = System.currentTimeMillis()))
+    fun `happy path - withdrawn, deposited, completed`(): Unit = runBlocking {
+        // Arrange and act
+        val id = submitted("happy")
 
         // Assert
-        awaitEvent(payment.id, PAYMENT_COMPLETED)
-        awaitStatus(payment.id, "COMPLETED")
-        channel(payment.id).map { it.eventType() } shouldContainExactly listOf(
+        awaitEvent(id, PAYMENT_COMPLETED)
+        awaitStatus(id, "COMPLETED")
+        channel(id).map { it.eventType() } shouldContainExactly listOf(
             PAYMENT_SUBMITTED, WITHDRAWAL_REQUESTED, FUNDS_WITHDRAWN, DEPOSIT_REQUESTED, FUNDS_DEPOSITED, PAYMENT_COMPLETED,
         )
     }
 
     @Test
-    fun `core checking's answer - the ledger row as our event, with the whole payment and the row as raw`(): Unit = runBlocking {
+    fun `the gateways' events - the outside system's answer, with the whole payment and the original as raw`(): Unit = runBlocking {
         // Arrange
-        val id = submitted("ledger")
+        val id = submitted("translated")
 
         // Act
         val withdrawn = awaitEvent(id, FUNDS_WITHDRAWN)
+        val deposited = awaitEvent(id, FUNDS_DEPOSITED)
 
         // Assert
-        val row = ledgerRows(id).single()
-        withdrawn.id shouldBe "${row.getValue("ENTRY_ID")}.FUNDS_WITHDRAWN"
+        withdrawn.id shouldBe "${ledgerRows(id).single().getValue("ENTRY_ID")}.FUNDS_WITHDRAWN"
         withdrawn.payment.to shouldBe Party(Party.CARD, "K-2")
         withdrawn.tags!!["source"] shouldBe "payments-core-checking-ingress-gateway"
         (withdrawn.raw as JsonRaw).value.toString() shouldContain "\"TXN_TYP\":\"PMT\""
+
+        deposited.id shouldBe "evt_$id.FUNDS_DEPOSITED"
+        deposited.payment.from shouldBe Party(Party.CHECKING, "C-1")
+        deposited.tags!!["source"] shouldBe "payments-card-processor-ingress-gateway"
+        (deposited.raw as JsonRaw).value.toString() shouldContain "\"type\":\"credit.succeeded\""
     }
 
     @Test
     fun `insufficient funds - the withdrawal fails, and so does the payment`(): Unit = runBlocking {
-        // Arrange
+        // Arrange and act
         val id = submitted("nsf", from = Simulation.INSUFFICIENT_FUNDS)
 
-        // Act
-        val failed = awaitEvent(id, PAYMENT_FAILED)
-
         // Assert
-        failed.shouldBeInstanceOf<PaymentFailed>().reason shouldBe Reasons.INSUFFICIENT_FUNDS
+        awaitEvent(id, PAYMENT_FAILED).shouldBeInstanceOf<PaymentFailed>().reason shouldBe Reasons.INSUFFICIENT_FUNDS
         awaitStatus(id, "FAILED").reason shouldBe Reasons.INSUFFICIENT_FUNDS
     }
 
     @Test
     fun `someone else's account - account-not-found`(): Unit = runBlocking {
-        // Arrange
+        // Arrange and act
         val id = submitted("not-owner", from = Simulation.NOT_OWNER)
 
-        // Act
-        val failed = awaitEvent(id, WITHDRAWAL_FAILED)
-
         // Assert
-        failed.shouldBeInstanceOf<WithdrawalFailed>().reason shouldBe Reasons.ACCOUNT_NOT_FOUND
+        awaitEvent(id, WITHDRAWAL_FAILED).shouldBeInstanceOf<WithdrawalFailed>().reason shouldBe Reasons.ACCOUNT_NOT_FOUND
         awaitEvent(id, PAYMENT_FAILED)
     }
 
     @Test
     fun `card declined - core checking refunds, and the payment fails with the deposit's reason`(): Unit = runBlocking {
-        // Arrange
-        val payment = sentToCard("declined")
-
-        // Act
-        cardAnswers(DepositFailed(payment, Reasons.CARD_DECLINED, id = "${payment.id}.declined", timestamp = System.currentTimeMillis()))
+        // Arrange and act
+        val id = submitted("declined", to = Simulation.DECLINED_CARD)
 
         // Assert
-        awaitEvent(payment.id, REFUND_REQUESTED)
-        awaitEvent(payment.id, FUNDS_REFUNDED)
-        awaitEvent(payment.id, PAYMENT_FAILED).shouldBeInstanceOf<PaymentFailed>().reason shouldBe Reasons.CARD_DECLINED
-        awaitStatus(payment.id, "FAILED")
-        ledgerRows(payment.id).map { it.getValue("TXN_TYP") }.sorted() shouldBe listOf("PMT", "RFND")
+        awaitEvent(id, DEPOSIT_FAILED).tags!!["source"] shouldBe "payments-card-processor-ingress-gateway"
+        awaitEvent(id, REFUND_REQUESTED)
+        awaitEvent(id, FUNDS_REFUNDED)
+        awaitEvent(id, PAYMENT_FAILED).shouldBeInstanceOf<PaymentFailed>().reason shouldBe Reasons.CARD_DECLINED
+        awaitStatus(id, "FAILED")
+        ledgerRows(id).map { it.getValue("TXN_TYP") }.sorted() shouldBe listOf("PMT", "RFND")
+    }
+
+    @Test
+    fun `an invalid card - the processor refuses outright, the egress gateway says DEPOSIT_FAILED, and it's refunded`(): Unit = runBlocking {
+        // Arrange and act
+        val id = submitted("refused", to = Simulation.REFUSED_CARD)
+
+        // Assert
+        val failed = awaitEvent(id, DEPOSIT_FAILED)
+        failed.id shouldBe "$id.refused.DEPOSIT_FAILED"
+        failed.tags!!["source"] shouldBe "payments-card-processor-egress-gateway"
+        failed.shouldBeInstanceOf<DepositFailed>().reason shouldBe Reasons.CARD_DECLINED
+        awaitEvent(id, FUNDS_REFUNDED)
+        awaitStatus(id, "FAILED")
     }
 
     @Test
     fun `the refund is rejected - a fault for the operator, and the customer sees DELAYED`(): Unit = runBlocking {
-        // Arrange
-        val payment = sentToCard("refund-rejected", from = Simulation.REFUND_REJECTED)
-
-        // Act
-        cardAnswers(DepositFailed(payment, Reasons.CARD_DECLINED, id = "${payment.id}.declined", timestamp = System.currentTimeMillis()))
+        // Arrange and act
+        val id = submitted("refund-rejected", from = Simulation.REFUND_REJECTED, to = Simulation.DECLINED_CARD)
 
         // Assert
-        awaitEvent(payment.id, REFUND_FAILED).shouldBeInstanceOf<RefundFailed>().reason shouldBe Reasons.ACCOUNT_CLOSED
-        awaitStatus(payment.id, "DELAYED")
-        awaitFault("Refund failed for payment ${payment.id}")
-        channel(payment.id).none { it.eventType() == PAYMENT_FAILED } shouldBe true
+        awaitEvent(id, REFUND_FAILED).shouldBeInstanceOf<RefundFailed>().reason shouldBe Reasons.ACCOUNT_CLOSED
+        awaitStatus(id, "DELAYED")
+        awaitFault("Refund failed for payment $id")
+        channel(id).none { it.eventType() == PAYMENT_FAILED } shouldBe true
     }
 
     @Test
     fun `a withdrawal both done and failed - a conflict, a fault, and no outcome`(): Unit = runBlocking {
-        // Arrange
-        val payment = sentToCard("conflict")
+        // Arrange: a late card, so nothing else happens to the payment for a while
+        val id = submitted("conflict", to = Simulation.LATE_CARD)
+        val payment = awaitEvent(id, DEPOSIT_REQUESTED).payment
 
         // Act
         publish(
-            WithdrawalFailed(payment, Reasons.REJECTED, id = "${payment.id}.rejected", timestamp = System.currentTimeMillis()),
+            WithdrawalFailed(payment, Reasons.REJECTED, id = "$id.rejected", timestamp = System.currentTimeMillis()),
             "payments-core-checking-ingress-gateway",
         )
 
         // Assert
-        awaitFault("Conflict on payment ${payment.id}")
-        channel(payment.id).none { it.eventType() == PAYMENT_FAILED } shouldBe true
+        awaitFault("Conflict on payment $id")
+        channel(id).none { it.eventType() == PAYMENT_FAILED } shouldBe true
     }
 
     @Test
-    fun `the card is past its deadline - PAYMENT_EXPIRED, DELAYED, and a late answer still completes it`(): Unit = runBlocking {
+    fun `a card credited after its deadline - PAYMENT_EXPIRED, DELAYED, then a late PAYMENT_COMPLETED`(): Unit = runBlocking {
         // Arrange
-        val payment = sentToCard("late")
+        val id = submitted("late", to = Simulation.LATE_CARD)
+        awaitEvent(id, DEPOSIT_REQUESTED)
 
-        // Act
-        deadlinePasses(payment.id, Steps.DEPOSIT)
+        // Act: the deposit's two minutes pass before the processor's webhook comes
+        deadlinePasses(id, Steps.DEPOSIT)
 
         // Assert
-        awaitEvent(payment.id, PAYMENT_EXPIRED).shouldBeInstanceOf<PaymentExpired>().step shouldBe Steps.DEPOSIT
-        awaitStatus(payment.id, "DELAYED")
-
-        cardAnswers(FundsDeposited(payment, id = "${payment.id}.deposited", timestamp = System.currentTimeMillis()))
-        awaitEvent(payment.id, PAYMENT_COMPLETED)
-        awaitStatus(payment.id, "COMPLETED")
+        awaitEvent(id, PAYMENT_EXPIRED).shouldBeInstanceOf<PaymentExpired>().step shouldBe Steps.DEPOSIT
+        awaitStatus(id, "DELAYED")
+        awaitEvent(id, PAYMENT_COMPLETED, timeout = 5.minutes)
+        awaitStatus(id, "COMPLETED")
     }
 
     @Test
     fun `a redelivered event changes nothing, and core checking is called once`(): Unit = runBlocking {
         // Arrange
-        val payment = sentToCard("duplicate")
-        val requested = awaitEvent(payment.id, WITHDRAWAL_REQUESTED)
-        val withdrawn = awaitEvent(payment.id, FUNDS_WITHDRAWN)
+        val id = submitted("duplicate", to = Simulation.LATE_CARD)
+        val requested = awaitEvent(id, WITHDRAWAL_REQUESTED)
+        val withdrawn = awaitEvent(id, FUNDS_WITHDRAWN)
 
         // Act
         publish(requested, "payments-control-service")
@@ -197,8 +194,26 @@ class PaymentsITest {
         delay(20.seconds) // time for a second call or a second DEPOSIT_REQUESTED, if there were one
 
         // Assert
-        ledgerRows(payment.id).size shouldBe 1
-        channel(payment.id).count { it.eventType() == DEPOSIT_REQUESTED } shouldBe 1
+        ledgerRows(id).size shouldBe 1
+        channel(id).count { it.eventType() == DEPOSIT_REQUESTED } shouldBe 1
+    }
+
+    @Test
+    fun `the webhook - only the processor's signature, a 5xx until the deposit is known, a fault if unreadable`(): Unit = runBlocking {
+        // Arrange
+        val unknown = """{"event_id":"evt_x","type":"credit.succeeded","created":1,"data":{"credit_id":"cr_x","amount_cents":1,"currency":"usd","metadata":{"reference":"${paymentId("unknown")}"}}}"""
+        val unreadable = """{"unreadable":"${paymentId("unreadable")}"}"""
+
+        // Act
+        val unsigned = webhook(unknown, signed = false)
+        val tooEarly = webhook(unknown)
+        val garbled = webhook(unreadable)
+
+        // Assert
+        unsigned.statusCode shouldBe 401
+        tooEarly.statusCode shouldBe 503
+        garbled.statusCode shouldBe 200
+        awaitFault(paymentId("unreadable"))
     }
 
     @Test

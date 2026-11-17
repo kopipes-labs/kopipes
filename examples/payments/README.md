@@ -20,11 +20,12 @@ Running example: payment `p-7`, 100 USD from checking account `C-1` to card `K-2
 | `payments-bff` | ✅ | BFF | REST API, `MaterializePipeline`, `CdcPipeline` |
 | `payments-core-checking-ingress-gateway` | ✅ | ESG ingress (legacy, CDC) | `TranslatePipeline`, `MaterializePipeline` |
 | `payments-core-checking-egress-gateway` | ✅ | ESG egress (legacy, API call) | `ActionPipeline`, `CircuitBreaker` |
-| `payments-card-processor-*-gateway` | stage 3 | ESG (third party) | |
+| `payments-card-processor-ingress-gateway` | ✅ | ESG ingress (third party, webhook) | `TranslatePipeline`, `RestApi` |
+| `payments-card-processor-egress-gateway` | ✅ | ESG egress (third party, API call) | `ActionPipeline` (emitting), `RateLimiter` |
 | `payments-egress-gateway` | stage 4 | ESG (subsystem) | |
 
-Core checking is simulated by its gateways (see [Simulation mode](#simulation-mode)). Until the card processor's
-gateways exist, the integration tests play them: they publish the deposit's answer to the bus.
+The outside systems are simulated by their gateways (see [Simulation mode](#simulation-mode)), so a payment runs end
+to end locally, and the account decides what happens to it.
 
 ## How a payment flows
 
@@ -37,7 +38,11 @@ control service listener ─► events table ─(stream)─► control service t
                                                                                  │
    core checking egress ─► core checking ◄────────────────────────────────────────┘
                               │ (its ledger, through change data capture)
-   core checking ingress ◄────┘ ─► bus: FUNDS_WITHDRAWN ─► … ─► DEPOSIT_REQUESTED ─► (stage 3: the card) ─► PAYMENT_COMPLETED
+   core checking ingress ◄────┘ ─► bus: FUNDS_WITHDRAWN ─► … ─► DEPOSIT_REQUESTED
+                                                                   │
+   card processor egress ─► card processor ◄───────────────────────┘
+                              │ (its webhook)
+   card processor ingress ◄───┘ ─► bus: FUNDS_DEPOSITED ─► … ─► PAYMENT_COMPLETED
          ▲
 BFF listener ─► views table: what each payment has heard ─► GET /payments/p-7
 ```
@@ -120,6 +125,25 @@ gateways are the subsystem's edge with it: **act, then hear back**.
   (`MaterializePipeline`) and fills in the snapshot from it. A row heard before its request waits: a retryable error
   and stream retry, not a fault.
 
+### Card processor gateways
+
+The card processor is a third party: it limits our request rate, answers later by webhook, and supports idempotency
+keys.
+
+- **Egress** ([CardProcessor.kt](payments-card-processor-egress-gateway/app/src/main/kotlin/org/myorg/payments/CardProcessor.kt)):
+  calls the credit API with the payment id as the **idempotency key**, so every retry is the same credit. Calls are
+  **paced** by a `RateLimiter` whose per-second budget lives in DynamoDB, shared by every container; a `429` waits as
+  long as the processor says, a `5xx` or a timeout backs off, and after a few attempts the request goes back to the
+  stream. An accepted request is a promise, not a fact: nothing is published. The one exception: a request refused
+  outright (`4xx`) will never get a webhook, so the gateway answers for the processor with `DEPOSIT_FAILED`
+  (`ActionPipeline.actionEmitting`), and the refund runs.
+- **Ingress** ([Webhooks.kt](payments-card-processor-ingress-gateway/app/src/main/kotlin/org/myorg/payments/Webhooks.kt)):
+  `POST /webhooks/card-processor` checks the processor's HMAC signature (`401` otherwise), then runs the body
+  through the same kind of `TranslatePipeline` as the ledger. **Answered means published:** `200` only once the event
+  is on the bus; a webhook for a deposit it hasn't heard of yet, or a bus that's down, is a `503`, so the processor
+  sends it again; a signed but unreadable body is a fault, then `200`. The event id comes from the webhook's own id,
+  so a redelivered webhook is the same event.
+
 ### Simulation mode
 
 Each egress gateway has one setting, `SIMULATE` (on locally, never in production). With it on, the gateway doesn't
@@ -131,8 +155,14 @@ The ingress gateway can't tell the difference. The answer depends only on the ac
 |---|---|
 | `C-2` | Withdrawal rejected: insufficient funds |
 | `C-9` | Withdrawal rejected: someone else's account (`account-not-found`) |
-| `C-5` | Withdrawal posted, but the refund is rejected (account closed) |
-| any other | Posted |
+| `C-5` | Withdrawal posted, but the refund is rejected (account closed). Pair it with `K-3` |
+| `K-3` | Card credit declined: a `credit.failed` webhook. Starts the refund |
+| `K-4` | Card request refused outright (`4xx`): the egress gateway emits `DEPOSIT_FAILED` itself |
+| `K-7` | Card credited, but after the deposit's deadline: `PAYMENT_EXPIRED`, then a late `PAYMENT_COMPLETED` |
+| any other | Success |
+
+For the card processor, the simulator signs the webhook with the ingress gateway's secret and posts it to its real
+URL (both published as SSM parameters by the ingress stack).
 
 ### Common components
 

@@ -19,6 +19,35 @@ object Simulation {
     /** Withdrawal succeeds, but the refund is rejected (account closed). Pair it with a declined card. */
     const val REFUND_REJECTED = "C-5"
 
+    /** Card credit declined: the webhook says it failed. Starts the refund. */
+    const val DECLINED_CARD = "K-3"
+
+    /** Card request refused outright (`4xx`, an invalid card): the egress gateway emits DEPOSIT_FAILED itself. */
+    const val REFUSED_CARD = "K-4"
+
+    /** Card credited, but after the deposit deadline: PAYMENT_EXPIRED, then a late PAYMENT_COMPLETED. */
+    const val LATE_CARD = "K-7"
+
+    /**
+     * The webhook the processor would send once it settled this payment's credit. The processor deduplicates on our
+     * idempotency key (the payment id), so a repeated request is the same credit, with the same ids.
+     */
+    fun cardWebhook(payment: Payment, createdSeconds: Long): CardWebhook {
+        val declined = payment.to.account == DECLINED_CARD
+        return CardWebhook(
+            eventId = "evt_${payment.id}",
+            type = if (declined) CardWebhook.FAILED else CardWebhook.SUCCEEDED,
+            created = createdSeconds,
+            data = CardCredit(
+                creditId = "cr_${payment.id}",
+                amountCents = amountInCents(payment.amount),
+                currency = payment.currency.lowercase(),
+                metadata = CardMetadata(reference = payment.id),
+                failureCode = if (declined) "card_declined" else null,
+            ),
+        )
+    }
+
     /** What core checking would write for a debit (`PMT`) or a refund credit (`RFND`) of this payment. */
     fun ledgerEntry(payment: Payment, txnType: String, postedAt: Long, entryId: String): LedgerEntry {
         val rejectCode = when {

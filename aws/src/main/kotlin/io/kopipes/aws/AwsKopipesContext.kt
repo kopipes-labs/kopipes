@@ -11,6 +11,7 @@ import io.kopipes.core.*
 import io.kopipes.core.faults.FaultManager
 import io.kopipes.core.serialization.snapshots.AwsOperationSnapshot
 import io.kopipes.core.serialization.snapshots.DefaultUnitOfWorkSnapshotter
+import io.kopipes.core.serialization.snapshots.JsonRawRecordSnapshotter
 import io.kopipes.core.serialization.snapshots.RecordSnapshotter
 import io.kopipes.core.serialization.snapshots.UnitOfWorkSnapshotter
 import io.kopipes.core.sinks.EventPublisher
@@ -55,7 +56,7 @@ class AwsKopipesContext @JvmOverloads constructor(
     companion object {
         @JvmStatic
         fun defaultRecordSnapshotters(): List<RecordSnapshotter> =
-            listOf(KinesisRecordSnapshotter(), DynamoDbRecordSnapshotter(), SqsRecordSnapshotter())
+            listOf(KinesisRecordSnapshotter(), DynamoDbRecordSnapshotter(), SqsRecordSnapshotter(), JsonRawRecordSnapshotter())
     }
 }
 

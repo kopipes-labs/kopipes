@@ -57,6 +57,22 @@ class GatewayPipelinesTest {
     }
 
     @Test
+    fun `an emitting action publishes the events it returns`(): Unit = runBlocking {
+        // Arrange
+        val pipeline = ActionPipeline.builder()
+            .id("call")
+            .eventPublisher(publisher)
+            .actionEmitting { uow -> if (uow.event?.id == "refused") listOf(TestEvent(id = "failed", type = "FAILED")) else emptyList() }
+            .build()
+
+        // Act
+        pipeline.connect(fm, flowOf(UnitOfWork(event = TestEvent(id = "ok")), UnitOfWork(event = TestEvent(id = "refused")))).toList()
+
+        // Assert
+        publisher.getUows().map { it.event!!.id } shouldBe listOf("failed")
+    }
+
+    @Test
     fun `a translate pipeline turns a raw record into events and publishes them`(): Unit = runBlocking {
         // Arrange
         val pipeline = TranslatePipeline.builder()

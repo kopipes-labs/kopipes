@@ -10,6 +10,12 @@ import io.kopipes.cdk.Stage
 object Partners {
     /** Core checking's ledger, as change data capture would deliver it: a table with a stream. */
     fun ledgerTableName(stage: Stage) = "payments-core-checking-ingress-gateway-$stage-ledger"
+
+    /** The card processor ingress gateway's webhook URL, as a parameter: the processor is configured with it. */
+    fun cardWebhookUrlParameter(stage: Stage) = "/payments/$stage/card-processor/webhook-url"
+
+    /** The secret the card processor signs its webhooks with. */
+    fun cardWebhookSecretParameter(stage: Stage) = "/payments/$stage/card-processor/webhook-secret"
 }
 
 /**
