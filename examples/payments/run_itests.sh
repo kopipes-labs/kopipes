@@ -16,10 +16,10 @@ cd $SCRIPT_DIR
 TEST_FILTER="${1:-}"
 
 if [[ -n "$TEST_FILTER" ]]; then
-    (set -x; $GW integrationTest --tests "$TEST_FILTER")
+    (set -x; $GW integrationTest --rerun --tests "$TEST_FILTER")
 
 else
-    (set -x; $GW integrationTest --rerun-tasks)
+    (set -x; $GW integrationTest --rerun)
 fi
 GW_STATUS=$?
 

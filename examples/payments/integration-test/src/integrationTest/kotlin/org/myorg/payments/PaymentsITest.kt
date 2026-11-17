@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.myorg.payments.LocalPayments.api
 import org.myorg.payments.LocalPayments.awaitEvent
+import org.myorg.payments.LocalPayments.cardSettled
 import org.myorg.payments.LocalPayments.awaitFault
 import org.myorg.payments.LocalPayments.awaitNotification
 import org.myorg.payments.LocalPayments.notifications
@@ -21,6 +22,7 @@ import org.myorg.payments.LocalPayments.channel
 import org.myorg.payments.LocalPayments.deadlinePasses
 import org.myorg.payments.LocalPayments.ledgerRows
 import org.myorg.payments.LocalPayments.paymentBody
+import org.myorg.payments.LocalPayments.poll
 import org.myorg.payments.LocalPayments.publish
 import org.myorg.payments.LocalPayments.submit
 import org.myorg.payments.LocalPayments.WEBHOOK_FUNCTION
@@ -202,15 +204,17 @@ class PaymentsITest {
     fun `a card credited after its deadline - PAYMENT_EXPIRED, DELAYED, then a late PAYMENT_COMPLETED`(): Unit = runBlocking {
         // Arrange
         val id = submitted("late", to = Simulation.LATE_CARD)
-        awaitEvent(id, DEPOSIT_REQUESTED)
+        val payment = awaitEvent(id, DEPOSIT_REQUESTED).payment
 
-        // Act: the deposit's two minutes pass before the processor's webhook comes
+        // Act: the deposit's two minutes pass before the processor's webhook comes. The test sends that webhook
+        // itself rather than waiting for the simulator's, which comes long after (and is then a redelivery).
         deadlinePasses(id, Steps.DEPOSIT)
-
-        // Assert
         awaitEvent(id, PAYMENT_EXPIRED).shouldBeInstanceOf<PaymentExpired>().step shouldBe Steps.DEPOSIT
         awaitStatus(id, "DELAYED")
-        awaitEvent(id, PAYMENT_COMPLETED, timeout = 5.minutes)
+        poll(1.minutes, "the webhook to be taken") { cardSettled(payment).takeIf { it.statusCode == 200 } } // 503 until the deposit is known
+
+        // Assert
+        awaitEvent(id, PAYMENT_COMPLETED)
         awaitStatus(id, "COMPLETED")
     }
 

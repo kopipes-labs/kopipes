@@ -50,6 +50,12 @@ testing {
                         shouldRunAfter(test)
                         // A payment crosses several functions per step; give LocalStack time.
                         systemProperty("junit.jupiter.execution.timeout.default", "10m")
+                        // The tests mostly wait on LocalStack, and each uses its own payments: run a few at once.
+                        // More would start more function containers than Docker has memory for.
+                        systemProperty("junit.jupiter.execution.parallel.enabled", "true")
+                        systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+                        systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
+                        systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
                     }
                 }
             }

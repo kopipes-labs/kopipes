@@ -24,6 +24,8 @@ import aws.sdk.kotlin.services.sqs.model.ReceiveMessageRequest
 import aws.smithy.kotlin.runtime.net.url.Url
 import io.kopipes.aws.tools.ResubmitFaults
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -38,6 +40,9 @@ import kotlin.time.Duration.Companion.seconds
  * The payments subsystem as deployed to LocalStack, seen from outside: the customer's REST API, the bus (where the
  * tests play the gateways that aren't built yet), the default channel (where the tests watch what the services
  * publish), the fault monitor's notifications, and the control service's deadlines.
+ *
+ * The tests run in parallel (see build.gradle.kts), so what's read once and shared between them (the channel, the
+ * fault notifications, the notifications) is guarded by a mutex.
  */
 object LocalPayments {
     private const val REGION = "us-east-1"
@@ -110,7 +115,8 @@ object LocalPayments {
 
     // ---- What the services publish: the default channel ----
 
-    /** Everything read from the default channel so far, and where to read on from. */
+    /** Everything read from the default channel so far, and where to read on from; guarded by [channelLock]. */
+    private val channelLock = Mutex()
     private val channelRecords = mutableListOf<String>()
     private var channelIterator: String? = null
     private var lastSequence: String? = null
@@ -149,8 +155,11 @@ object LocalPayments {
 
     /** The events on the default channel for [paymentId], in order. */
     suspend fun channel(paymentId: String): List<PaymentEvent> {
-        readChannel()
-        return channelRecords
+        val records = channelLock.withLock {
+            readChannel()
+            channelRecords.toList()
+        }
+        return records
             .filter { text ->
                 runCatching {
                     json.parseToJsonElement(text).jsonObject["payment"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
@@ -165,6 +174,7 @@ object LocalPayments {
 
     // ---- The fault monitor: its notifications, through the queue subscribed to its topic ----
 
+    private val faultsLock = Mutex()
     private val seenFaults = mutableListOf<String>()
 
     /** Waits for a fault notification that mentions [text]. Firehose buffers faults for about a minute, twice. */
@@ -173,12 +183,14 @@ object LocalPayments {
             queueName = "payments-event-fault-monitor-local-notification-verification.fifo"
         }).queueUrl
         return poll(timeout, "a fault about $text") {
-            sqs.receiveMessage(ReceiveMessageRequest {
-                this.queueUrl = queueUrl
-                maxNumberOfMessages = 10
-                waitTimeSeconds = 5
-            }).messages.orEmpty().forEach { seenFaults += it.body.orEmpty() }
-            seenFaults.firstOrNull { text in it }
+            faultsLock.withLock {
+                sqs.receiveMessage(ReceiveMessageRequest {
+                    this.queueUrl = queueUrl
+                    maxNumberOfMessages = 10
+                    waitTimeSeconds = 5
+                }).messages.orEmpty().forEach { seenFaults += it.body.orEmpty() }
+                seenFaults.firstOrNull { text in it }
+            }
         }
     }
 
@@ -241,10 +253,11 @@ object LocalPayments {
 
     // ---- Notifications (a stand-in): what payments told the rest of the bank ----
 
+    private val notificationsLock = Mutex()
     private val notificationsSeen = linkedMapOf<String, JsonObject>()
 
     /** The external events that reached the Notifications hub for [paymentId], as EventBridge delivered them. */
-    suspend fun notifications(paymentId: String): List<JsonObject> {
+    suspend fun notifications(paymentId: String): List<JsonObject> = notificationsLock.withLock {
         val queueUrl = sqs.getQueueUrl(GetQueueUrlRequest { queueName = "notifications-event-hub-local-inbox" }).queueUrl
         sqs.receiveMessage(ReceiveMessageRequest {
             this.queueUrl = queueUrl
@@ -254,7 +267,7 @@ object LocalPayments {
             notificationsSeen[message.messageId!!] = json.parseToJsonElement(message.body!!).jsonObject
             sqs.deleteMessage(DeleteMessageRequest { this.queueUrl = queueUrl; receiptHandle = message.receiptHandle })
         }
-        return notificationsSeen.values.filter {
+        notificationsSeen.values.filter {
             it["detail"]?.jsonObject?.get("payment")?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull == paymentId
         }
     }
@@ -281,6 +294,13 @@ object LocalPayments {
         })
         return json.decodeFromString(response.payload!!.decodeToString())
     }
+
+    /**
+     * Posts the webhook the processor sends once it settled [payment]'s credit, as the simulator would. The simulator
+     * still posts its own later; it has the same event id, so it's a redelivery.
+     */
+    suspend fun cardSettled(payment: Payment): ApiResponse =
+        webhook(cardJson.encodeToString(CardWebhook.serializer(), Simulation.cardWebhook(payment, System.currentTimeMillis() / 1000)))
 
     // ---- Core checking (simulated): its ledger ----
 
