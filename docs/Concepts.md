@@ -95,4 +95,8 @@ The [payments example](../examples/payments/README.md) builds one of each.
 | **Claim check** | A large payload stored in S3, with only a reference in the event. See [Claim Check](ClaimCheck.md) |
 | **eem** | Envelope encryption metadata: which fields are encrypted, and the encrypted data keys. See [Encryption](Encryption.md) |
 | **Context** | `AwsKopipesContext`: the shared collaborators. See [Wiring](Wiring.md) |
+| **CPCQ** | Command, publish, consume, query: how two services share data without calling each other. See [Architectural Approach](ArchitecturalApproach.md#command-publish-consume-query) |
+| **Bulkhead** | A boundary where a failure stops spreading: the bus, a service's own views, a subsystem's account, a gateway, a region |
+| **Idempotent** | Gives the same result however many times it receives an event. See [Idempotence and Ordering](Idempotence.md) |
+| **Abort event** | An expected business outcome that stops a process (`DEPOSIT_FAILED`), handled by compensation, unlike a fault |
 | **Container** | Your class that wires a function's pipelines from a context |

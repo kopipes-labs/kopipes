@@ -171,7 +171,9 @@ private fun kinesisEventOf(vararg events: OrderPlacedEvent) = KinesisEvent().app
 * [How kopipes works](Concepts.md): the flow of a batch, the building blocks, a glossary
 * [Pipelines](Pipelines.md): every flavor, with samples
 * [Wiring a kopipes Lambda](Wiring.md)
+* [Idempotence and Ordering](Idempotence.md)
 * [Deadlines](Deadlines.md)
+* [Observability](Observability.md)
 * [Fault Re-submission](FaultResubmission.md) and [Replaying Events](ReplayEvents.md)
 * [Framework Features](Features.md)
 * [Understanding Events and Event Types](Events.md)

@@ -15,6 +15,7 @@ Start with [How kopipes works](Concepts.md), then follow the path for your role.
 | Page | For |
 |---|---|
 | [Software Architects Guide](SoftwareArchitects.md) | Benefits, how a system is shaped, trade-offs, when not to use it |
+| [The book's patterns in kopipes](BookPatterns.md) | Every pattern from the book, mapped to what the framework provides |
 | [Kotlin Developers Guide](KotlinDevelopers.md) | A first Kotlin function, with its test |
 | [Java Developers Guide](JavaDevelopers.md) | A first Java function, with its test |
 
@@ -26,6 +27,7 @@ Start with [How kopipes works](Concepts.md), then follow the path for your role.
 | [Wiring a kopipes Lambda](Wiring.md) | The context, containers, tests, configuration, Spring Boot |
 | [Events](Events.md) | Domain, internal, external and change events |
 | [Implementing Events (Kotlin)](EventImplementationKotlin.md) / [(Java)](EventImplementationJava.md) | The `Event` interface and codecs |
+| [Idempotence and Ordering](Idempotence.md) | Duplicates and out-of-order events, and the tools to handle them |
 | [Deadlines](Deadlines.md) | Reacting when something *didn't* happen, with DynamoDB TTL |
 | [Envelope Encryption](Encryption.md) | Field-level encryption with KMS |
 | [Claim Check](ClaimCheck.md) | Large payloads through S3 |
@@ -49,6 +51,7 @@ Start with [How kopipes works](Concepts.md), then follow the path for your role.
 |---|---|
 | [Fault Re-submission](FaultResubmission.md) | Faults, the fault monitor, and the `resubmit-events` tool |
 | [Replaying Events](ReplayEvents.md) | Sending archived events to a function with `replay-events` |
+| [Observability](Observability.md) | Metrics kopipes emits, and what to alert on |
 
 ## Examples
 

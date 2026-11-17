@@ -48,7 +48,7 @@ Ready-made pipeline flavors you configure with a builder. See [Pipelines](Pipeli
 ## Observability
 
 - **EMF metrics:** pipeline and step metrics (counts, latency, batch utilization) as CloudWatch Embedded Metric
-  Format, switched on with the `METRICS` env var.
+  Format, switched on with the `METRICS` env var. See [Observability](Observability.md).
 - **Unit of work snapshots** in fault events and debug logs: the event, the original record, and the AWS requests
   and responses made for it.
 - **Standard tags** on every event and fault (account, stage, service, function, pipeline), and `triggers` linking

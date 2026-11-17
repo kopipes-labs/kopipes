@@ -142,6 +142,7 @@ files they must merge.
 
 ## Background
 
-The framework follows the serverless architecture patterns in John Gilbert's [book](https://a.co/d/0cgkIieB) and
+The framework follows the serverless architecture patterns in John Gilbert's [book](https://a.co/d/0cgkIieB),
+*Software Architecture Patterns for Serverless Systems* ([how each pattern maps to kopipes](docs/BookPatterns.md)), and
 [blog](https://medium.com/@jgilbert001), and uses his [TypeScript framework](https://github.com/jgilbert01/aws-lambda-stream)
 as its reference.

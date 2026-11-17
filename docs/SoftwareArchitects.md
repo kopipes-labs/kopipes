@@ -92,16 +92,19 @@ Highland.js streams, constructor wiring instead of module-level state, and Java 
 
 ## Further reading
 
+* [The book's patterns in kopipes](BookPatterns.md): every pattern, mapped to the framework
 * [How kopipes works](Concepts.md): the flow of a batch, and a glossary
 * [Features](Features.md)
 * [Architectural Approach](ArchitecturalApproach.md)
 * [Autonomous Service Patterns](AutonomousServicePatterns.md)
 * [Events](Events.md)
 * [Events Microstore](EventsMicrostore.md)
+* [Idempotence and Ordering](Idempotence.md)
 * [Deadlines](Deadlines.md)
 * [Fault Re-submission](FaultResubmission.md) and [Replaying Events](ReplayEvents.md)
 * [Event Lake](EventLake.md)
 * [Regional Health Check](RegionalHealthCheck.md)
+* [Observability](Observability.md)
 * [Envelope Encryption](Encryption.md)
 * [Claim Check](ClaimCheck.md)
 * [CDK constructs](../cdk/README.md)

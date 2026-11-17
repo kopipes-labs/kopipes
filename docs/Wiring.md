@@ -139,7 +139,7 @@ or use Spring, which also reads them as `kopipes.*` properties.
 | `PARALLEL`, `CW_PARALLEL` | sinks' parallelism |
 | `BUCKET_NAME`, `CLAIMCHECK_BUCKET_NAME` | S3 sink, claim checks |
 | `STREAM_RETRY_ENABLED`, `ITEM_LEVEL_RETRY_ENABLED` | the fault manager |
-| `METRICS` (`pipeline`, `step`, `emf`, or `*`) | metrics |
+| `METRICS` (`pipeline`, `step`, `emf`, or `*`), `NAMESPACE` | metrics; see [Observability](Observability.md) |
 | `AWS_REGION` / `AWS_DEFAULT_REGION`, `AWS_ENDPOINT_URL` | clients |
 | `ACCOUNT_NAME`, `STAGE`, `SERVICE`, `AWS_LAMBDA_FUNCTION_NAME`, `SKIP` | the standard tags on every event and fault |
 
