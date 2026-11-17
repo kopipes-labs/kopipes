@@ -22,7 +22,8 @@ Running example: payment `p-7`, 100 USD from checking account `C-1` to card `K-2
 | `payments-core-checking-egress-gateway` | ✅ | ESG egress (legacy, API call) | `ActionPipeline`, `CircuitBreaker` |
 | `payments-card-processor-ingress-gateway` | ✅ | ESG ingress (third party, webhook) | `TranslatePipeline`, `RestApi` |
 | `payments-card-processor-egress-gateway` | ✅ | ESG egress (third party, API call) | `ActionPipeline` (emitting), `RateLimiter` |
-| `payments-egress-gateway` | stage 4 | ESG (subsystem) | |
+| `payments-egress-gateway` | ✅ | ESG egress (subsystem) | `CdcPipeline`, `EventForwarding` |
+| `notifications-event-hub` | ✅ | A stand-in for the Notifications subsystem's hub | A bus, a log and an inbox queue |
 
 The outside systems are simulated by their gateways (see [Simulation mode](#simulation-mode)), so a payment runs end
 to end locally, and the account decides what happens to it.
@@ -30,6 +31,8 @@ to end locally, and the account decides what happens to it.
 ## How a payment flows
 
 ```
+                                        PAYMENT_COMPLETED / PAYMENT_FAILED ─► payments egress ─► our hub (external)
+                                                                                     ─► egress rule ─► Notifications hub
 customer ─PUT─► BFF ─► views table ─(stream)─► BFF trigger ─► bus: PAYMENT_SUBMITTED
                                                               │
          ┌────────────────────────── default channel ◄────────┘
@@ -143,6 +146,23 @@ keys.
   is on the bus; a webhook for a deposit it hasn't heard of yet, or a bus that's down, is a `503`, so the processor
   sends it again; a signed but unreadable body is a fault, then `200`. The event id comes from the webhook's own id,
   so a redelivered webhook is the same event.
+
+### Payments egress gateway
+
+[Translation.kt](payments-egress-gateway/app/src/main/kotlin/org/myorg/payments/Translation.kt) decides what payments
+tells the rest of the bank, and hides everything else: only the outcomes cross, as `PAYMENTS.PAYMENT_COMPLETED` and
+`PAYMENTS.PAYMENT_FAILED`, with the payment id, customer, amount, currency and submitted time. Account and card
+numbers, `raw`, the step events and `PAYMENT_EXPIRED` stay inside, and of the five internal reasons only
+`insufficient-funds` is told apart: anything else is `rejected`, so accounts can't be probed.
+
+- The external events are their own classes, owned by this gateway and published as a
+  [JSON Schema](payments-egress-gateway/contract/payments-external-events.schema.json); a test checks that what is
+  published has exactly the schema's fields. The internal events can change without touching the contract.
+- It publishes onto **our own hub** with source `external`, so the default channel doesn't carry them back in. The
+  hub's egress rule (`EventForwarding`, owned by this stack) forwards `PAYMENTS.*` to each downstream hub; EventBridge
+  retries that delivery. The event lake keeps the external events too.
+- **Changing the contract** (`submittedAt` → `createdAt`) takes three deployments, all in this gateway: publish both,
+  wait for every consumer's contract tests to switch, then drop `submittedAt`. The internal events keep `submittedAt`.
 
 ### Simulation mode
 

@@ -19,6 +19,7 @@ export CDK_DISABLE_LEGACY_EXPORT_WARNING=1 # Disable annoying warning.
 
 # This is the logical order to deploy the stacks.
 STACKS=(
+	"notifications-event-hub"
 	"payments-event-hub"
 	"payments-event-fault-monitor"
 	"payments-event-lake"
@@ -26,6 +27,7 @@ STACKS=(
 	"payments-core-checking-egress-gateway"
 	"payments-card-processor-ingress-gateway"
 	"payments-card-processor-egress-gateway"
+	"payments-egress-gateway"
 	"payments-control-service"
 	"payments-bff"
 )

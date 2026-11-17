@@ -3,6 +3,8 @@ package org.myorg.payments
 import io.kopipes.core.JsonRaw
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldEndWith
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -12,6 +14,8 @@ import org.junit.jupiter.api.Test
 import org.myorg.payments.LocalPayments.api
 import org.myorg.payments.LocalPayments.awaitEvent
 import org.myorg.payments.LocalPayments.awaitFault
+import org.myorg.payments.LocalPayments.awaitNotification
+import org.myorg.payments.LocalPayments.notifications
 import org.myorg.payments.LocalPayments.awaitStatus
 import org.myorg.payments.LocalPayments.channel
 import org.myorg.payments.LocalPayments.deadlinePasses
@@ -65,6 +69,32 @@ class PaymentsITest {
         channel(id).map { it.eventType() } shouldContainExactly listOf(
             PAYMENT_SUBMITTED, WITHDRAWAL_REQUESTED, FUNDS_WITHDRAWN, DEPOSIT_REQUESTED, FUNDS_DEPOSITED, PAYMENT_COMPLETED,
         )
+    }
+
+    @Test
+    fun `Notifications hears the outcome, with the public payment only, and nothing else`(): Unit = runBlocking {
+        // Arrange and act
+        val id = submitted("public")
+
+        // Assert
+        val completed = awaitNotification(id, "PAYMENTS.PAYMENT_COMPLETED")
+        completed.getValue("id").jsonPrimitive.content shouldEndWith ".done.external"
+        completed.getValue("tags").jsonObject.getValue("source").jsonPrimitive.content shouldBe "payments-egress-gateway"
+        completed.getValue("payment").jsonObject.keys shouldBe setOf("id", "customerId", "amount", "currency", "submittedAt")
+        completed.containsKey("raw") shouldBe false
+        delay(10.seconds) // time for anything else to arrive, if it did
+        notifications(id).map { it.getValue("detail-type").jsonPrimitive.content } shouldBe listOf("PAYMENTS.PAYMENT_COMPLETED")
+    }
+
+    @Test
+    fun `Notifications hears why a payment failed, in public words`(): Unit = runBlocking {
+        // Arrange and act
+        val nsf = submitted("public-nsf", from = Simulation.INSUFFICIENT_FUNDS)
+        val declined = submitted("public-declined", to = Simulation.DECLINED_CARD)
+
+        // Assert
+        awaitNotification(nsf, "PAYMENTS.PAYMENT_FAILED").getValue("reason").jsonPrimitive.content shouldBe "insufficient-funds"
+        awaitNotification(declined, "PAYMENTS.PAYMENT_FAILED").getValue("reason").jsonPrimitive.content shouldBe "rejected"
     }
 
     @Test

@@ -1,0 +1,4 @@
+{
+  "app": "../../../../gradlew run --quiet",
+  "context": {}
+}

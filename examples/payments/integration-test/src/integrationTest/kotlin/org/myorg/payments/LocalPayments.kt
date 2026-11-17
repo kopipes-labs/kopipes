@@ -17,12 +17,14 @@ import aws.sdk.kotlin.services.kinesis.model.ShardIteratorType
 import aws.sdk.kotlin.services.lambda.LambdaClient
 import aws.sdk.kotlin.services.lambda.model.InvokeRequest
 import aws.sdk.kotlin.services.sqs.SqsClient
+import aws.sdk.kotlin.services.sqs.model.DeleteMessageRequest
 import aws.sdk.kotlin.services.sqs.model.GetQueueUrlRequest
 import aws.sdk.kotlin.services.sqs.model.ReceiveMessageRequest
 import aws.smithy.kotlin.runtime.net.url.Url
 import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -200,6 +202,32 @@ object LocalPayments {
             })
         }
     }
+
+    // ---- Notifications (a stand-in): what payments told the rest of the bank ----
+
+    private val notificationsSeen = linkedMapOf<String, JsonObject>()
+
+    /** The external events that reached the Notifications hub for [paymentId], as EventBridge delivered them. */
+    suspend fun notifications(paymentId: String): List<JsonObject> {
+        val queueUrl = sqs.getQueueUrl(GetQueueUrlRequest { queueName = "notifications-event-hub-local-inbox" }).queueUrl
+        sqs.receiveMessage(ReceiveMessageRequest {
+            this.queueUrl = queueUrl
+            maxNumberOfMessages = 10
+            waitTimeSeconds = 2
+        }).messages.orEmpty().forEach { message ->
+            notificationsSeen[message.messageId!!] = json.parseToJsonElement(message.body!!).jsonObject
+            sqs.deleteMessage(DeleteMessageRequest { this.queueUrl = queueUrl; receiptHandle = message.receiptHandle })
+        }
+        return notificationsSeen.values.filter {
+            it["detail"]?.jsonObject?.get("payment")?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull == paymentId
+        }
+    }
+
+    /** Waits until Notifications got [type] for the payment, and returns its `detail`: the external event. */
+    suspend fun awaitNotification(paymentId: String, type: String, timeout: Duration = 3.minutes): JsonObject =
+        poll(timeout, "$type for $paymentId at Notifications") {
+            notifications(paymentId).firstOrNull { it["detail-type"]?.jsonPrimitive?.contentOrNull == type }
+        }.getValue("detail").jsonObject
 
     // ---- The card processor: its webhook, signed as the processor would ----
 

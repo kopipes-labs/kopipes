@@ -238,6 +238,31 @@ class EventHubTest {
     }
 }
 
+class EventForwardingTest {
+
+    @Test
+    fun `forwards external events with the prefix to the other subsystem's bus`() {
+        // Arrange
+        val stack = testStack("payments-egress-gateway")
+
+        // Act
+        EventForwarding(stack, "notifications", "PAYMENTS.", "notifications-event-hub-local-bus")
+
+        // Assert
+        stack.template().hasResourceProperties(
+            "AWS::Events::Rule",
+            mapOf(
+                "EventBusName" to "payments-event-hub-local-bus",
+                "EventPattern" to mapOf(
+                    "source" to listOf("external"),
+                    "detail-type" to listOf(mapOf("prefix" to "PAYMENTS.")),
+                ),
+            ),
+        )
+        stack.template().toJSON().toString().contains("notifications-event-hub-local-bus") shouldBe true
+    }
+}
+
 class EventLakeTest {
 
     @Test

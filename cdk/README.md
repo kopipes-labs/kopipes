@@ -40,6 +40,7 @@ class ControlServiceStack(scope: Construct, props: ServiceProps) : KopipesStack(
 | `EventHub` | The bus, the default Kinesis channel `s1`, the archive and log groups | Deploy it first: everything else finds it by name |
 | `EventLake` | Bus → Firehose → S3, everything except faults | Gzipped, under `<region>/`, read by the replay tool |
 | `FaultMonitor` | Bus → Firehose (with a transform) → S3, faults only; a FIFO SNS topic | The transform is your function; `verificationQueue` subscribes a queue for integration tests |
+| `EventForwarding` | The hub's egress rule: external events with a type prefix → another subsystem's bus | Owned by the egress gateway that publishes them |
 | `RestApi` | API Gateway proxying every request to one function | For a BFF's API or an ingress gateway's webhook |
 
 ## Names
