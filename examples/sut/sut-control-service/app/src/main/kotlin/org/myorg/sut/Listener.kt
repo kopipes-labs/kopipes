@@ -3,6 +3,7 @@ package org.myorg.sut
 import com.amazonaws.services.lambda.runtime.Context
 import com.amazonaws.services.lambda.runtime.RequestHandler
 import com.amazonaws.services.lambda.runtime.events.KinesisEvent
+import io.kopipes.aws.metrics.EmfReporter
 import io.kopipes.core.metrics.collectMetrics
 import io.kopipes.core.metrics.updateMetrics
 import io.kopipes.core.utils.loggedLazy
@@ -33,7 +34,7 @@ class Listener(
             .map { uow ->
                 uow.updateMetrics { it.gauge("custom.metric", 1.0) }
             }
-            .collectMetrics()
+            .collectMetrics(reporter = EmfReporter(container.context.envConfig))
             .collect { logger.info { "collected " + it.event?.id } }
         null
     }

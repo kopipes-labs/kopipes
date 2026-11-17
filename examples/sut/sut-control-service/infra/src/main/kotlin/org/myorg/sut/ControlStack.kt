@@ -1,5 +1,6 @@
 package org.myorg.sut
 
+import io.kopipes.cdk.EnvVars
 import io.kopipes.cdk.EventsTable
 import io.kopipes.cdk.KopipesFunction
 import io.kopipes.cdk.KopipesFunctionProps
@@ -19,7 +20,12 @@ class ControlStack(scope: Construct, serviceProps: ServiceProps) : KopipesStack(
 
     val events = EventsTable(this, "Events")
 
-    val listener = KopipesFunction(this, "listener", KopipesFunctionProps(jar, "org.myorg.sut.Listener::handleRequest"))
+    // METRICS=*: the listener reports its pipeline metrics as EMF (see docs/Observability.md).
+    val listener = KopipesFunction(
+        this,
+        "listener",
+        KopipesFunctionProps(jar, "org.myorg.sut.Listener::handleRequest", environment = mapOf(EnvVars.METRICS to "*")),
+    )
         .listenTo()
         .uses(events)
 
